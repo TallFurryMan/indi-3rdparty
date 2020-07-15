@@ -24,13 +24,16 @@ INDIDEVICE="Weather Radio"
 INDIDEVICEPORT="/dev/ttyUSB0"
 
 # RRD storage holding time series data
-RRDFILE="./weather.rrd"
+RRDFILE="/usr/share/weatherradio/weather.rrd"
 
 # RRD storage holding time series for raw sensor data
-RRDSENSORSFILE="./sensors.rrd"
+RRDSENSORSFILE="/usr/share/weatherradio/sensors.rrd"
 
 # path to the JSON files holding the data
-DATAPATH="./html/data"
+DATAPATH="/usr/share/weatherradio/html/data"
+
+# path to the directory holding web cam images and videos
+MEDIADIR="/usr/share/weatherradio/html/media"
 
 ######### INDI Weather vector and element names
 WEATHER="WEATHER_PARAMETERS"
