@@ -50,13 +50,13 @@ static void cleanup()
     }
 }
 
-void ATIK_CCD_ISInit()
+bool ATIKCCD::isInit = false;
+
+void ATIKCCD::SDKInit()
 {
-    static bool isInit = false;
     if (!isInit)
     {
         iAvailableDevicesCount = 0;
-        std::vector<std::string> cameraNames;
 
         IDLog("Atik Cameras API V%d DLL V%d initializing.", ArtemisAPIVersion(), ArtemisDLLVersion());
 
@@ -75,54 +75,69 @@ void ATIK_CCD_ISInit()
             }
         }
 
-        if (iAvailableDevicesCount <= 0)
+        ATIKCCD::SDKEnumerate(nullptr);
+        IEAddTimer(2000, &ATIKCCD::SDKEnumerate, nullptr);
+
+        atexit(cleanup);
+        isInit = true;
+    }
+}
+
+void ATIKCCD::SDKEnumerate(void *ptr)
+{
+    INDI_UNUSED(ptr);
+
+    std::vector<std::string> cameraNames;
+
+    iAvailableDevicesCount = ArtemisDeviceCount();
+
+    if (iAvailableDevicesCount > MAX_DEVICES)
+    {
+        IDLog("This driver only supports %d Atik devices.", MAX_DEVICES);
+        iAvailableDevicesCount = MAX_DEVICES;
+    }
+
+    for (int i = 0; i < iAvailableDevicesCount; i++)
+    {
+        // Only do cameras in this driver.
+        if (ArtemisDeviceIsPresent(i) == false || ArtemisDeviceIsCamera(i) == false)
+            continue;
+
+        char pName[MAXINDILABEL] = {0};
+
+        // Only consider devices which are given a name
+        if (ArtemisDeviceName(i, pName) == false)
+            continue;
+
+        std::stringstream cameraName(pName);
+
+        // Append the USB port to differentiate between identical devices
+        libusb_device * usbdevice = nullptr;
+        if (ArtemisDeviceGetLibUSBDevice(i, &usbdevice))
+            cameraName << "(" << libusb_get_bus_number(usbdevice) << ":" << libusb_get_port_number(usbdevice) << ")";
+
+        // If the device is new, instantiate a driver
+        if (std::find(cameraNames.begin(), cameraNames.end(), cameraName.str()) == cameraNames.end())
         {
-            IDLog("No Atik devices were enumerated.");
-            iAvailableDevicesCount = 0;
+            std::string const name = cameraName.str();
+            cameras[i] = new ATIKCCD(name, i);
+            cameraNames.push_back(name);
         }
-        else if (iAvailableDevicesCount > MAX_DEVICES)
-        {
-            IDLog("This driver only supports %d Atik devices.", MAX_DEVICES);
-            iAvailableDevicesCount = MAX_DEVICES;
-        }
+    }
 
-        for (int i = 0; i < iAvailableDevicesCount; i++)
-        {
-            // We only do cameras in this driver.
-            if (ArtemisDeviceIsPresent(i) == false || ArtemisDeviceIsCamera(i) == false)
-                continue;
+    if (cameraNames.empty())
+        iAvailableDevicesCount = 0;
 
-            char pName[MAXINDILABEL] = {0};
-            std::string cameraName;
-
-            if (ArtemisDeviceName(i, pName) == false)
-                continue;
-
-            if (std::find(cameraNames.begin(), cameraNames.end(), pName) == cameraNames.end())
-                cameraName = std::string(pName);
-            else
-                cameraName = std::string(pName) + " " +
-                        std::to_string(static_cast<int>(std::count(cameraNames.begin(), cameraNames.end(), pName)) + 1);
-
-            cameras[i] = new ATIKCCD(cameraName, i);
-            cameraNames.push_back(pName);
-        }
-
-        if (cameraNames.empty())
-        {
-            iAvailableDevicesCount = 0;
-        }
-        else
-        {
-            atexit(cleanup);
-            isInit = true;
-        }
+    if (iAvailableDevicesCount <= 0)
+    {
+        IDLog("No Atik devices were enumerated.");
+        iAvailableDevicesCount = 0;
     }
 }
 
 void ISGetProperties(const char *dev)
 {
-    ATIK_CCD_ISInit();
+    ATIKCCD::SDKInit();
 
     if (iAvailableDevicesCount == 0)
     {
@@ -148,7 +163,7 @@ void ISGetProperties(const char *dev)
 
 void ISNewSwitch(const char *dev, const char *name, ISState *states, char *names[], int num)
 {
-    ATIK_CCD_ISInit();
+    ATIKCCD::SDKInit();
     for (int i = 0; i < iAvailableDevicesCount; i++)
     {
         ATIKCCD *camera = cameras[i];
@@ -167,7 +182,7 @@ void ISNewSwitch(const char *dev, const char *name, ISState *states, char *names
 
 void ISNewText(const char *dev, const char *name, char *texts[], char *names[], int num)
 {
-    ATIK_CCD_ISInit();
+    ATIKCCD::SDKInit();
     for (int i = 0; i < iAvailableDevicesCount; i++)
     {
         ATIKCCD *camera = cameras[i];
@@ -186,7 +201,7 @@ void ISNewText(const char *dev, const char *name, char *texts[], char *names[], 
 
 void ISNewNumber(const char *dev, const char *name, double values[], char *names[], int num)
 {
-    ATIK_CCD_ISInit();
+    ATIKCCD::SDKInit();
     for (int i = 0; i < iAvailableDevicesCount; i++)
     {
         ATIKCCD *camera = cameras[i];
@@ -218,7 +233,7 @@ void ISNewBLOB(const char *dev, const char *name, int sizes[], int blobsizes[], 
 
 void ISSnoopDevice(XMLEle *root)
 {
-    ATIK_CCD_ISInit();
+    ATIKCCD::SDKInit();
 
     for (int i = 0; i < iAvailableDevicesCount; i++)
     {

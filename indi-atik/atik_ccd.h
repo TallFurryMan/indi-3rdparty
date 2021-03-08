@@ -29,6 +29,13 @@
 class ATIKCCD : public INDI::CCD, public INDI::FilterInterface
 {
     public:
+        static void SDKInit();
+        static void SDKEnumerate(void *ptr);
+
+    private:
+        static bool isInit;
+
+    public:
         explicit ATIKCCD(std::string cameraName, int id);
         ~ATIKCCD() override = default;
 
