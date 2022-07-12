@@ -202,6 +202,7 @@ option(WITH_PLAYERONE "Install Player One Astronomy's Camera Driver" On)
 option(WITH_WEEWX_JSON "Install Weewx JSON Driver" On)
 option(WITH_ROLLOFFINO "Install RollOff ino Dome Driver" On)
 option(WITH_ASTROASIS "Install Astroasis Driver" On)
+option(WITH_MOONDUINO "Install Moonduino Focuser Driver" On)
 
 # FFMPEG required for INDI Webcam driver
 find_package(FFmpeg)
@@ -533,6 +534,11 @@ endif (WITH_TOUPBASE)
 if (WITH_BEEFOCUS)
 add_subdirectory(indi-beefocus)
 endif(WITH_BEEFOCUS)
+
+## Moonduino Focuser
+if (WITH_MOONDUINO)
+add_subdirectory(indi-moonduino)
+endif(WITH_MOONDUINO)
 
 
 ## INOVA
