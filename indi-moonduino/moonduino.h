@@ -25,6 +25,7 @@
 #include <indidustcapinterface.h>
 
 #include <chrono>
+#include <mutex>
 
 class Moonduino;
 
@@ -50,6 +51,7 @@ class MoonDuino :
                 virtual IPState ParkCap();
                 virtual IPState UnParkCap();
                 virtual void TimerHit() override;
+                void readState();
 
             private:
                 ITextVectorProperty StatusTP;
@@ -189,4 +191,7 @@ class MoonDuino :
 
         // Dustcap
         DustCap m_DustCap;
+
+        // Serial lock
+        std::timed_mutex m_SerialLock;
 };
