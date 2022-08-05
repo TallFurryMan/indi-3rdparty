@@ -829,7 +829,7 @@ IPState MoonDuino::DustCap::ParkCap()
 {
     IPState e = IPS_BUSY;
 
-    if (m_Parent == nullptr || m_Parent->sendCommand(":DC0#") == false)
+    if (m_Parent == nullptr || m_Parent->sendCommand(":DC1#") == false)
         e = IPS_ALERT;
 
     IUSaveText(&StatusT[0], e == IPS_BUSY ? "Capping" : "Serial error");
@@ -842,7 +842,7 @@ IPState MoonDuino::DustCap::UnParkCap()
 {
     IPState e = IPS_BUSY;
 
-    if (m_Parent == nullptr || m_Parent->sendCommand(":DC1#") == false)
+    if (m_Parent == nullptr || m_Parent->sendCommand(":DC0#") == false)
         e = IPS_ALERT;
 
     IUSaveText(&StatusT[0], e == IPS_BUSY ? "Uncapping" : "Serial error");
@@ -858,21 +858,21 @@ void MoonDuino::DustCap::readState()
     {
         if (strcmp(res,"2#"))
         {
-            if (!strcmp(res, "0#"))
-            {
-                ParkCapSP.s = IPS_OK;
-                ParkCapS[CAP_PARK].s = ISS_ON;
-                ParkCapS[CAP_UNPARK].s = ISS_OFF;
-                IUSaveText(&StatusT[0], "Capped");
-            }
-            else if (!strcmp(res, "1#"))
+            if (!strcmp(res, "0#")) // Unparked
             {
                 ParkCapSP.s = IPS_OK;
                 ParkCapS[CAP_PARK].s = ISS_OFF;
                 ParkCapS[CAP_UNPARK].s = ISS_ON;
                 IUSaveText(&StatusT[0], "Uncapped");
             }
-            if (IPS_BUSY == ParkCapSP.s)
+            else if (!strcmp(res, "1#")) // Parked
+            {
+                ParkCapSP.s = IPS_OK;
+                ParkCapS[CAP_PARK].s = ISS_ON;
+                ParkCapS[CAP_UNPARK].s = ISS_OFF;
+                IUSaveText(&StatusT[0], "Capped");
+            }
+            if (IPS_BUSY == ParkCapSP.s) // Busy will change to ok now
                 LOG_INFO("DustCap reached requested position.");
             ParkCapSP.s = IPS_OK;
             IDSetSwitch(&ParkCapSP, nullptr);
