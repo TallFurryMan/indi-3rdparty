@@ -109,7 +109,7 @@ bool MoonDuino::initProperties()
 
     addAuxControls();
 
-    setDefaultPollingPeriod(500);
+    setDefaultPollingPeriod(1000);
     addDebugControl();
 
     return true;
@@ -304,12 +304,10 @@ bool MoonDuino::readSpeed()
 
     if (rc > 0)
     {
-        int focus_speed = -1;
-        while (speed > 0)
-        {
-            speed >>= 1;
+        LOGF_INFO("Focuser speed is coded %d.", speed);
+        int focus_speed = 1;
+        for (; speed > 2; speed >>= 1)
             focus_speed++;
-        }
         FocusSpeedN[0].value = focus_speed;
     }
     else
@@ -523,9 +521,9 @@ IPState MoonDuino::MoveFocuser(FocusDirection dir, int speed, uint16_t duration)
     // either go all the way in or all the way out
     // then use timer to stop
     if (dir == FOCUS_INWARD)
-        MoveFocuser(static_cast<uint32_t>(FocusMaxPosN[0].value));
-    else
         MoveFocuser(0);
+    else
+        MoveFocuser(static_cast<uint32_t>(FocusMaxPosN[0].value));
 
     IEAddTimer(duration, &MoonDuino::timedMoveHelper, this);
     return IPS_BUSY;
@@ -561,7 +559,7 @@ IPState MoonDuino::MoveAbsFocuser(uint32_t targetTicks)
 IPState MoonDuino::MoveRelFocuser(FocusDirection dir, uint32_t ticks)
 {
     // Clamp
-    int32_t offset = ((dir == FOCUS_INWARD) ? +1 : -1) * static_cast<int32_t>(ticks);
+    int32_t offset = ((dir == FOCUS_INWARD) ? -1 : 1) * static_cast<int32_t>(ticks);
     int32_t newPosition = FocusAbsPosN[0].value + offset;
     newPosition = std::max(static_cast<int32_t>(FocusAbsPosN[0].min), std::min(static_cast<int32_t>(FocusAbsPosN[0].max),
                            newPosition));
@@ -644,122 +642,144 @@ bool MoonDuino::saveConfigItems(FILE * fp)
 
 bool MoonDuino::sendCommand(const char * cmd, char * res, bool silent, int nret)
 {
-    int nbytes_written = 0, nbytes_read = 0, rc = -1;
-
-    tcflush(PortFD, TCIOFLUSH);
-
-    LOGF_DEBUG("CMD <%s>", cmd);
-
-    if (isSimulation())
+    if (m_SerialLock.try_lock_for(std::chrono::milliseconds(getCurrentPollingPeriod()/10)))
     {
-        if (!strcasecmp(cmd, ":GV#"))
-        {
-            LOG_INFO("Firmware check.");
-            res[0] = MOONDUINO_VERSION_MAJOR;
-            res[1] = MOONDUINO_VERSION_MINOR;
-        }
-        else if (!strcasecmp(cmd, ":FQ#"))
-        {
-            LOG_INFO("Abort motors.");
-        }
-        else if (!strcasecmp(cmd, ":DC0#"))
-        {
-            LOG_INFO("Dustcap close request.");
-        }
-        else if (!strcasecmp(cmd, ":DC1#"))
-        {
-            LOG_INFO("Dustcap open request.");
-        }
-        else if (!strcasecmp(cmd, ":DC2#"))
-        {
-            LOG_INFO("Dustcap current movement.");
-            if (res)
-                strcpy(res, "0000#");
-        }
-        else if (!strcasecmp(cmd, ":GH#"))
-        {
-            LOG_INFO("Focuser half-step state.");
-            if (res)
-                strcpy(res, "00#");
-        }
-        else if (!strcasecmp(cmd, ":GT#"))
-        {
-            if (res)
-                strcpy(res, "14#");
-        }
-        else if (!strcasecmp(cmd, ":C#"))
-        {
-
-        }
-        else if (!strcasecmp(cmd, ":GM#"))
-        {
-            if (res)
-                strcpy(res, "38#");
-        }
-        else if (!strcasecmp(cmd, ":GP#"))
-        {
-            //LOG_INFO("Focuser position.");
-            if (res)
-                strcpy(res, "C350#");
-        }
-        else if (!strcasecmp(cmd, ":GD#"))
-        {
-            LOG_INFO("Focuser current speed.");
-            if (res)
-                strcpy(res, "4#");
-        }
-        else if (!strcasecmp(cmd, ":GI#"))
-        {
-            LOG_INFO("Focuser current movement.");
-            if (res)
-                strcpy(res, "0#");
-        }
-        else
-        {
-            LOGF_DEBUG("Unsupported <%s>", cmd);
-            return false;
-        }
-    }
-    else
-    {
-        if ((rc = tty_write_string(PortFD, cmd, &nbytes_written)) != TTY_OK)
-        {
-            char errstr[MAXRBUF] = { 0 };
-            tty_error_msg(rc, errstr, MAXRBUF);
-            if (!silent)
-                LOGF_ERROR("Serial write error: %s.", errstr);
-            return false;
-        }
-
-        if (res == nullptr)
-        {
-            tcdrain(PortFD);
-            return true;
-        }
-
-        // this is to handle the GV command which doesn't return the terminator, use the number of chars expected
-        if (nret == 0)
-        {
-            rc = tty_nread_section(PortFD, res, ML_RES, ML_DEL, ML_TIMEOUT, &nbytes_read);
-        }
-        else
-        {
-            rc = tty_read(PortFD, res, nret, ML_TIMEOUT, &nbytes_read);
-        }
-        if (rc != TTY_OK)
-        {
-            char errstr[MAXRBUF] = { 0 };
-            tty_error_msg(rc, errstr, MAXRBUF);
-            if (!silent)
-                LOGF_ERROR("Serial read error: %s.", errstr);
-            return false;
-        }
+        int nbytes_written = 0, nbytes_read = 0, rc = -1;
 
         tcflush(PortFD, TCIOFLUSH);
-    }
 
-    LOGF_DEBUG("RES <%s>", res);
-    return true;
+        LOGF_DEBUG("CMD <%s>", cmd);
+
+        if (isSimulation())
+        {
+            static int cap_counter = 0, uncap_counter = 0;
+            if (!strcasecmp(cmd, ":GV#"))
+            {
+                LOG_INFO("Firmware check.");
+                res[0] = MOONDUINO_VERSION_MAJOR;
+                res[1] = MOONDUINO_VERSION_MINOR;
+            }
+            else if (!strcasecmp(cmd, ":FQ#"))
+            {
+                LOG_INFO("Abort motors.");
+            }
+            else if (!strcasecmp(cmd, ":DC0#"))
+            {
+                LOG_INFO("Dustcap close request.");
+                cap_counter = 10;
+            }
+            else if (!strcasecmp(cmd, ":DC1#"))
+            {
+                LOG_INFO("Dustcap open request.");
+                uncap_counter = 10;
+            }
+            else if (!strcasecmp(cmd, ":DC2#"))
+            {
+                LOG_INFO("Dustcap current movement.");
+                if (res)
+                {
+                    if (cap_counter == 0)
+                        strcpy(res, "0#");
+                    else if (uncap_counter == 0)
+                        strcpy(res, "1#");
+                    else
+                    {
+                        strcpy(res, "2#");
+                        if (cap_counter > 0) cap_counter--;
+                        if (uncap_counter > 0) uncap_counter--;
+                    }
+                }
+            }
+            else if (!strcasecmp(cmd, ":GH#"))
+            {
+                LOG_INFO("Focuser half-step state.");
+                if (res)
+                    strcpy(res, "00#");
+            }
+            else if (!strcasecmp(cmd, ":GT#"))
+            {
+                if (res)
+                    strcpy(res, "14#");
+            }
+            else if (!strcasecmp(cmd, ":C#"))
+            {
+            }
+            else if (!strcasecmp(cmd, ":GM#"))
+            {
+                if (res)
+                    strcpy(res, "38#");
+            }
+            else if (!strcasecmp(cmd, ":GP#"))
+            {
+                //LOG_INFO("Focuser position.");
+                if (res)
+                    strcpy(res, "C350#");
+            }
+            else if (!strcasecmp(cmd, ":GD#"))
+            {
+                LOG_INFO("Focuser current speed.");
+                if (res)
+                    strcpy(res, "10#");
+            }
+            else if (!strcasecmp(cmd, ":GI#"))
+            {
+                LOG_INFO("Focuser current movement.");
+                if (res)
+                    strcpy(res, "0#");
+            }
+            else
+            {
+                LOGF_DEBUG("Unsupported <%s>", cmd);
+                m_SerialLock.unlock();
+                return false;
+            }
+        }
+        else
+        {
+            if ((rc = tty_write_string(PortFD, cmd, &nbytes_written)) != TTY_OK)
+            {
+                char errstr[MAXRBUF] = { 0 };
+                tty_error_msg(rc, errstr, MAXRBUF);
+                if (!silent)
+                    LOGF_ERROR("Serial write error: %s.", errstr);
+                m_SerialLock.unlock();
+                return false;
+            }
+
+            if (res == nullptr)
+            {
+                tcdrain(PortFD);
+                m_SerialLock.unlock();
+                return true;
+            }
+
+            // this is to handle the GV command which doesn't return the terminator, use the number of chars expected
+            if (nret == 0)
+            {
+                rc = tty_nread_section(PortFD, res, ML_RES, ML_DEL, ML_TIMEOUT, &nbytes_read);
+            }
+            else
+            {
+                rc = tty_read(PortFD, res, nret, ML_TIMEOUT, &nbytes_read);
+            }
+            if (rc != TTY_OK)
+            {
+                char errstr[MAXRBUF] = { 0 };
+                tty_error_msg(rc, errstr, MAXRBUF);
+                if (!silent)
+                    LOGF_ERROR("Serial read error: %s.", errstr);
+                m_SerialLock.unlock();
+                return false;
+            }
+
+            tcflush(PortFD, TCIOFLUSH);
+        }
+
+        LOGF_DEBUG("RES <%s>", res);
+        m_SerialLock.unlock();
+        return true;
+    }
+    else return false;
 }
 
 const char * MoonDuino::DustCap::getDefaultName()
@@ -809,11 +829,10 @@ IPState MoonDuino::DustCap::ParkCap()
 {
     IPState e = IPS_BUSY;
 
-    if (m_Parent == nullptr || m_Parent->sendCommand(":DC0#") == false)
+    if (m_Parent == nullptr || m_Parent->sendCommand(":DC1#") == false)
         e = IPS_ALERT;
 
     IUSaveText(&StatusT[0], e == IPS_BUSY ? "Capping" : "Serial error");
-    //IUSaveText(&StatusT[1], "Running");
     IDSetText(&StatusTP, nullptr);
 
     return e;
@@ -823,32 +842,54 @@ IPState MoonDuino::DustCap::UnParkCap()
 {
     IPState e = IPS_BUSY;
 
-    if (m_Parent == nullptr || m_Parent->sendCommand(":DC1#") == false)
+    if (m_Parent == nullptr || m_Parent->sendCommand(":DC0#") == false)
         e = IPS_ALERT;
 
     IUSaveText(&StatusT[0], e == IPS_BUSY ? "Uncapping" : "Serial error");
-    //IUSaveText(&StatusT[1], "Running");
     IDSetText(&StatusTP, nullptr);
 
     return e;
 }
 
-void MoonDuino::DustCap::TimerHit()
+void MoonDuino::DustCap::readState()
 {
-    if (ParkCapSP.s == IPS_BUSY)
+    char res[ML_RES] = {0};
+    if (m_Parent->sendCommand(":DC2#", res))
     {
-        char res[ML_RES] = {0};
-        if (m_Parent->sendCommand(":DC2#", res))
+        if (strcmp(res,"2#"))
         {
-            // TODO: Recover ticks left to walk from res[]
+            if (!strcmp(res, "0#")) // Unparked
+            {
+                ParkCapSP.s = IPS_OK;
+                ParkCapS[CAP_PARK].s = ISS_OFF;
+                ParkCapS[CAP_UNPARK].s = ISS_ON;
+                IUSaveText(&StatusT[0], "Uncapped");
+            }
+            else if (!strcmp(res, "1#")) // Parked
+            {
+                ParkCapSP.s = IPS_OK;
+                ParkCapS[CAP_PARK].s = ISS_ON;
+                ParkCapS[CAP_UNPARK].s = ISS_OFF;
+                IUSaveText(&StatusT[0], "Capped");
+            }
+            if (IPS_BUSY == ParkCapSP.s) // Busy will change to ok now
+                LOG_INFO("DustCap reached requested position.");
             ParkCapSP.s = IPS_OK;
             IDSetSwitch(&ParkCapSP, nullptr);
-            IUSaveText(&StatusT[0], "Capped/Uncapped");
-            //IUSaveText(&StatusT[1], "Stopped");
             IDSetText(&StatusTP, nullptr);
-            LOG_INFO("DustCap reached requested position.");
+        }
+        else
+        {
+            ParkCapSP.s = IPS_BUSY;
+            IDSetSwitch(&ParkCapSP, nullptr);
         }
     }
+}
+
+void MoonDuino::DustCap::TimerHit()
+{
+    if (ParkCapSP.s == IPS_BUSY || ParkCapSP.s == IPS_IDLE)
+        readState();
 }
 
 bool MoonDuino::DustCap::ISNewSwitch(const char *dev, const char *name, ISState *states, char *names[], int n)
