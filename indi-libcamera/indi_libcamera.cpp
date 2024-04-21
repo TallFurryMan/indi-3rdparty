@@ -48,38 +48,38 @@
 
 static class Loader
 {
-    std::map<int, std::shared_ptr<INDILibCamera>> cameras;
-public:
-    Loader()
-    {
-        load();
-    }
-
-public:
-public:
-    void load()
-    {
-        RPiCamINDIApp app;
-        int argc = 0;
-        char *argv[] = {};
-        auto options = app.GetOptions();
-        if (options->Parse(argc, argv))
+        std::map<int, std::shared_ptr<INDILibCamera>> cameras;
+    public:
+        Loader()
         {
-            auto new_cameras = app.GetCameras();
+            load();
+        }
 
-            if (new_cameras.size() == 0)
+    public:
+    public:
+        void load()
+        {
+            RPiCamINDIApp app;
+            int argc = 0;
+            char *argv[] = {};
+            auto options = app.GetOptions();
+            if (options->Parse(argc, argv))
             {
-                IDLog("No cameras detected.");
-                return;
-            }
+                auto new_cameras = app.GetCameras();
 
-            for (size_t i = 0; i < new_cameras.size(); i++)
-            {
-                auto newCamera = new INDILibCamera(i, new_cameras[i]->properties());
-                cameras[i] = std::shared_ptr<INDILibCamera>(newCamera);
+                if (new_cameras.size() == 0)
+                {
+                    IDLog("No cameras detected.");
+                    return;
+                }
+
+                for (size_t i = 0; i < new_cameras.size(); i++)
+                {
+                    auto newCamera = new INDILibCamera(i, new_cameras[i]->properties());
+                    cameras[i] = std::shared_ptr<INDILibCamera>(newCamera);
+                }
             }
         }
-    }
 
 } loader;
 
@@ -90,7 +90,7 @@ INDILibCamera::INDILibCamera(uint8_t index, const libcamera::ControlList &list) 
 {
     setVersion(LIBCAMERA_VERSION_MAJOR, LIBCAMERA_VERSION_MINOR);
     signal(SIGBUS, default_signal_handler);
-    auto fullName = std::string("LibCamera ") + list.get(properties::Model).value();
+    auto fullName = std::string("LibCamera ") + list.get(properties::Model).value() + "-" + std::to_string(index);
     setDeviceName(fullName.c_str());
 }
 
@@ -131,7 +131,7 @@ void INDILibCamera::workerStreamVideo(const std::atomic_bool &isAboutToQuit, dou
     configureVideoOptions(options, framerate);
     std::unique_ptr<Output> output = std::unique_ptr<Output>(Output::Create(options));
     app.SetEncodeOutputReadyCallback(std::bind(&INDILibCamera::outputReady, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-    app.SetMetadataReadyCallback(std::bind(&Output::MetadataReady, output.get(), std::placeholders::_1));
+    app.SetMetadataReadyCallback(std::bind(&INDILibCamera::metadataReady, this, std::placeholders::_1));
 
     try
     {
@@ -147,15 +147,33 @@ void INDILibCamera::workerStreamVideo(const std::atomic_bool &isAboutToQuit, dou
         return;
     }
 
+    if (m_LiveVideoWidth <= 0)
+    {
+        m_LiveVideoWidth = PrimaryCCD.getSubW();
+        m_LiveVideoHeight = PrimaryCCD.getSubH();
+        PrimaryCCD.setBin(1, 1);
+        PrimaryCCD.setFrame(0, 0, m_LiveVideoWidth, m_LiveVideoHeight);
+        Streamer->setPixelFormat(INDI_JPG);
+        Streamer->setSize(m_LiveVideoWidth, m_LiveVideoHeight);
+    }
+
     while (!isAboutToQuit)
     {
         RPiCamEncoder::Msg msg = app.Wait();
-        if (msg.type == RPiCamEncoder::MsgType::Quit)
+
+        if (msg.type == RPiCamApp::MsgType::Timeout)
+		{
+			LOG_WARN("Device timeout detected, attempting a restart!");
+			app.StopCamera();
+			app.StartCamera();
+			continue;
+		}
+        else if (msg.type == RPiCamEncoder::MsgType::Quit)
         {
             return;
         }
         else if (msg.type != RPiCamEncoder::MsgType::RequestComplete)
-        {
+        {            
             LOGF_ERROR("Video Streaming failed: %d", msg.type);
             shutdownVideo();
             return;
@@ -177,35 +195,26 @@ void INDILibCamera::workerStreamVideo(const std::atomic_bool &isAboutToQuit, dou
 void INDILibCamera::outputReady(void *mem, size_t size, int64_t timestamp_us, bool keyframe)
 {
     INDI_UNUSED(timestamp_us);
-    INDI_UNUSED(keyframe);
-    uint8_t * cameraBuffer = PrimaryCCD.getFrameBuffer();
-    size_t cameraBufferSize = 0;
-    int w = 0, h = 0, naxis = 0;
-    int bitsperpixel;
-    char bayer_pattern[8] = {};
+    
+    if (!keyframe)
+        return;
 
     // Read buffer from memory
     std::unique_lock<std::mutex> ccdguard(ccdBufferLock);
+    
+    Streamer->newFrame(static_cast<uint8_t*>(mem), size);
 
     // We are done with writing to CCD buffer
     ccdguard.unlock();
-
-    if (m_LiveVideoWidth <= 0)
-    {
-        PrimaryCCD.setBin(1, 1);
-        PrimaryCCD.setFrame(0, 0, m_LiveVideoWidth, m_LiveVideoHeight);
-        Streamer->setPixelFormat(INDI_JPG);
-        Streamer->setSize(m_LiveVideoWidth, m_LiveVideoHeight);
-    }
-    Streamer->newFrame(static_cast<uint8_t*>(mem), size);
 }
 
 /////////////////////////////////////////////////////////////////////////////
 ///
 /////////////////////////////////////////////////////////////////////////////
-void INDILibCamera::shutdownExposure()
-{
-    PrimaryCCD.setExposureFailed();
+void INDILibCamera::metadataReady(libcamera::ControlList &metadata)
+{    
+    // TODO could this metadata be useful?
+    INDI_UNUSED(metadata);
 }
 
 /////////////////////////////////////////////////////////////////////////////
@@ -227,20 +236,29 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
     catch (std::exception &e)
     {
         LOGF_ERROR("Error opening camera: %s", e.what());
-        shutdownExposure();
-        return;
+        PrimaryCCD.setExposureFailed();
+        app.StopCamera();
+        app.Teardown();
+        app.CloseCamera();
     }
 
     RPiCamApp::Msg msg = app.Wait();
     if (msg.type != RPiCamApp::MsgType::RequestComplete)
     {
         PrimaryCCD.setExposureFailed();
-        shutdownExposure();
+        app.StopCamera();
+        app.Teardown();
+        app.CloseCamera();
         LOGF_ERROR("Exposure failed: %d", msg.type);
         return;
     }
     else if (isAboutToQuit)
+    {
+        app.StopCamera();
+        app.Teardown();
+        app.CloseCamera();
         return;
+    }
 
     bool raw = CaptureFormatSP.findOnSwitchIndex() == CAPTURE_DNG;
     auto stream = raw ? app.RawStream() : app.StillStream();
@@ -276,7 +294,10 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
                 if (!processRAW(filename, &memptr, &memsize, &naxis, &w, &h, &bpp, bayer_pattern))
                 {
                     LOG_ERROR("Exposure failed to parse raw image.");
-                    shutdownExposure();
+                    PrimaryCCD.setExposureFailed();
+                    app.StopCamera();
+                    app.Teardown();
+                    app.CloseCamera();
                     unlink(filename);
                     return;
                 }
@@ -290,7 +311,10 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
                 if (!processJPEG(filename, &memptr, &memsize, &naxis, &w, &h))
                 {
                     LOG_ERROR("Exposure failed to parse jpeg.");
-                    shutdownExposure();
+                    PrimaryCCD.setExposureFailed();
+                    app.StopCamera();
+                    app.Teardown();
+                    app.CloseCamera();
                     unlink(filename);
                     return;
                 }
@@ -386,7 +410,10 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
             if (fstat(fd, &sb) == -1)
             {
                 LOGF_ERROR("Error opening file %s: %s", filename, strerror(errno));
-                shutdownExposure();
+                PrimaryCCD.setExposureFailed();
+                app.StopCamera();
+                app.Teardown();
+                app.CloseCamera();
                 close(fd);
                 return;
             }
@@ -409,7 +436,10 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
                 if (mmap_mem == nullptr)
                 {
                     LOGF_ERROR("Error reading file %s: %s", filename, strerror(errno));
-                    shutdownExposure();
+                    PrimaryCCD.setExposureFailed();
+                    app.StopCamera();
+                    app.Teardown();
+                    app.CloseCamera();
                     close(fd);
                     return;
                 }
@@ -433,16 +463,16 @@ void INDILibCamera::workerExposure(const std::atomic_bool &isAboutToQuit, float 
         }
 
         ExposureComplete(&PrimaryCCD);
-
-        app.StopCamera();
-        app.Teardown();
-        app.CloseCamera();
     }
     catch (std::exception &e)
     {
         LOGF_ERROR("Error saving image: %s", e.what());
-        shutdownExposure();
+        PrimaryCCD.setExposureFailed();
     }
+
+    app.StopCamera();
+    app.Teardown();
+    app.CloseCamera();
 }
 
 /*
@@ -591,6 +621,10 @@ void INDILibCamera::configureStillOptions(StillOptions *options, double duration
     TimeVal<std::chrono::microseconds> tv;
     tv.set(std::to_string(duration) + "s");
 
+    int argc = 0;
+    char *argv[] = {};
+    options->Parse(argc, argv);
+
     options->camera = m_CameraIndex;
     options->nopreview = true;
     options->immediate = true;
@@ -624,7 +658,13 @@ void INDILibCamera::configureStillOptions(StillOptions *options, double duration
 /////////////////////////////////////////////////////////////////////////////
 void INDILibCamera::configureVideoOptions(VideoOptions *options, double framerate)
 {
+    int argc = 0;
+    char *argv[] = {};
+    options->Parse(argc, argv);
+
     options->camera = m_CameraIndex;
+    options->nopreview = true;
+
     options->codec = "mjpeg";
     options->brightness = AdjustmentNP[AdjustBrightness].getValue();
     options->contrast = AdjustmentNP[AdjustContrast].getValue();
