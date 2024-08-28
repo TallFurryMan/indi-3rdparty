@@ -103,7 +103,7 @@ int timeval_subtract(struct timeval *result, struct timeval *x, struct timeval *
 }
 #endif
 
-EQMod::EQMod()
+EQMod::EQMod(): GI(this)
 {
     //ctor
     setVersion(EQMOD_VERSION_MAJOR, EQMOD_VERSION_MINOR);
@@ -263,19 +263,7 @@ bool EQMod::initProperties()
 
     loadProperties();
 
-    for (int i = 0; i < SlewRateSP.nsp - 1; i++)
-    {
-        SlewRateSP.sp[i].s = ISS_OFF;
-        sprintf(SlewRateSP.sp[i].label, "%.fx", slewspeeds[i]);
-        SlewRateSP.sp[i].aux = (void *)&slewspeeds[i];
-    }
-
-    // Since last item is NOT maximum (but custom), let's set item before custom to SLEWMAX
-    SlewRateSP.sp[SlewRateSP.nsp - 2].s = ISS_ON;
-    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 2].name, "SLEW_MAX", MAXINDINAME);
-    // Last is custom
-    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 1].name, "SLEWCUSTOM", MAXINDINAME);
-    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 1].label, "Custom", MAXINDILABEL);
+    initSlewRates();
 
     AddTrackMode("TRACK_SIDEREAL", "Sidereal", true);
     AddTrackMode("TRACK_SOLAR", "Solar");
@@ -300,14 +288,30 @@ bool EQMod::initProperties()
     return true;
 }
 
+void EQMod::initSlewRates()
+{
+    for (int i = 0; i < SlewRateSP.nsp - 1; i++)
+    {
+        SlewRateSP.sp[i].s = ISS_OFF;
+        sprintf(SlewRateSP.sp[i].label, "%.fx", slewspeeds[i]);
+        SlewRateSP.sp[i].aux = (void *)&slewspeeds[i];
+    }
+
+    // Since last item is NOT maximum (but custom), let's set item before custom to SLEWMAX
+    SlewRateSP.sp[SlewRateSP.nsp - 2].s = ISS_ON;
+    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 2].name, "SLEW_MAX", MAXINDINAME);
+    // Last is custom
+    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 1].name, "SLEWCUSTOM", MAXINDINAME);
+    strncpy(SlewRateSP.sp[SlewRateSP.nsp - 1].label, "Custom", MAXINDILABEL);
+}
+
 void EQMod::ISGetProperties(const char *dev)
 {
     INDI::Telescope::ISGetProperties(dev);
 
     if (isConnected())
     {
-        defineProperty(&GuideNSNP);
-        defineProperty(&GuideWENP);
+        GI::updateProperties();
         defineProperty(SlewSpeedsNP);
         defineProperty(GuideRateNP);
         defineProperty(PulseLimitsNP);
@@ -339,10 +343,6 @@ void EQMod::ISGetProperties(const char *dev)
 #if defined WITH_ALIGN || defined WITH_ALIGN_GEEHALEL
         defineProperty(AlignSyncModeSP);
 #endif
-        if (mount->HasHomeIndexers())
-        {
-            defineProperty(AutoHomeSP);
-        }
 
         if (mount->HasAuxEncoders())
         {
@@ -416,7 +416,6 @@ bool EQMod::loadProperties()
     SyncManageSP        = getSwitch("SYNCMANAGE");
     BacklashNP          = getNumber("BACKLASH");
     UseBacklashSP       = getSwitch("USEBACKLASH");
-    AutoHomeSP          = getSwitch("AUTOHOME");
     AuxEncoderSP        = getSwitch("AUXENCODER");
     AuxEncoderNP        = getNumber("AUXENCODERVALUES");
     ST4GuideRateNSSP    = getSwitch("ST4_GUIDE_RATE_NS");
@@ -441,7 +440,7 @@ bool EQMod::loadProperties()
 
     simulator->initProperties();
 
-    INDI::GuiderInterface::initGuiderProperties(this->getDeviceName(), MOTION_TAB);
+    GI::initProperties(MOTION_TAB);
 
 #ifdef WITH_SCOPE_LIMITS
     if (horizon)
@@ -456,12 +455,45 @@ bool EQMod::loadProperties()
 
 bool EQMod::updateProperties()
 {
+    // JM 2024.07.29: Need to run this *before* Telescope::updateProperty so we can check if
+    // the mount supports homing since we need to update the telescope capabilities accordingly.
+    if (isConnected())
+    {
+        try
+        {
+            mount->InquireBoardVersion(MountInformationTP);
+
+            for (const auto &it : MountInformationTP)
+            {
+                LOGF_DEBUG("Got Board Property %s: %s", it.getName(), it.getText());
+            }
+
+            mount->InquireRAEncoderInfo(SteppersNP);
+            mount->InquireDEEncoderInfo(SteppersNP);
+
+            for (const auto &it : SteppersNP)
+            {
+                LOGF_DEBUG("Got Encoder Property %s: %.0f", it.getLabel(), it.getValue());
+            }
+
+            mount->InquireFeatures();
+            if (mount->HasHomeIndexers())
+            {
+                LOG_INFO("Mount has home indexers. Enabling Autohome.");
+                SetTelescopeCapability(GetTelescopeCapability() | TELESCOPE_CAN_HOME_FIND, SLEWMODES);
+                initSlewRates();
+            }
+        }
+        catch (EQModError &e)
+        {
+            return (e.DefaultHandleException(this));
+        }
+    }
+
     INDI::Telescope::updateProperties();
 
     if (isConnected())
     {
-        defineProperty(&GuideNSNP);
-        defineProperty(&GuideWENP);
         defineProperty(SlewSpeedsNP);
         defineProperty(GuideRateNP);
         defineProperty(PulseLimitsNP);
@@ -495,28 +527,6 @@ bool EQMod::updateProperties()
 #endif
         try
         {
-            mount->InquireBoardVersion(MountInformationTP);
-
-            for (const auto &it : MountInformationTP)
-            {
-                LOGF_DEBUG("Got Board Property %s: %s", it.getName(), it.getText());
-            }
-
-            mount->InquireRAEncoderInfo(SteppersNP);
-            mount->InquireDEEncoderInfo(SteppersNP);
-
-            for (const auto &it : SteppersNP)
-            {
-                LOGF_DEBUG("Got Encoder Property %s: %.0f", it.getLabel(), it.getValue());
-            }
-
-            mount->InquireFeatures();
-            if (mount->HasHomeIndexers())
-            {
-                LOG_INFO("Mount has home indexers. Enabling Autohome.");
-                defineProperty(AutoHomeSP);
-            }
-
             if (mount->HasAuxEncoders())
             {
                 defineProperty(AuxEncoderSP);
@@ -585,13 +595,6 @@ bool EQMod::updateProperties()
             INumber *elevation = IUFindNumber(&LocationNP, "ELEV");
             if (latitude && longitude && elevation)
                 updateLocation(latitude->value, longitude->value, elevation->value);
-            //            else
-            //                updateLocation(0.0, 0.0, 0.0);
-
-            //            if ((latitude) && (latitude->value < 0.0))
-            //                SetSouthernHemisphere(true);
-            //            else
-            //                SetSouthernHemisphere(false);
 
             sendTimeFromSystem();
         }
@@ -602,8 +605,6 @@ bool EQMod::updateProperties()
     }
     else
     {
-        deleteProperty(GuideNSNP.name);
-        deleteProperty(GuideWENP.name);
         deleteProperty(GuideRateNP);
         deleteProperty(PulseLimitsNP);
         deleteProperty(MountInformationTP);
@@ -630,8 +631,6 @@ bool EQMod::updateProperties()
         deleteProperty(ST4GuideRateWESP);
         deleteProperty(LEDBrightnessNP);
 
-        if (mount->HasHomeIndexers())
-            deleteProperty(AutoHomeSP);
         if (mount->HasAuxEncoders())
         {
             deleteProperty(AuxEncoderSP);
@@ -679,6 +678,7 @@ bool EQMod::updateProperties()
     }
 #endif
 
+    GI::updateProperties();
     mount->setSimulation(isSimulation());
     simulator->updateProperties(isSimulation());
 
@@ -1103,17 +1103,6 @@ bool EQMod::ReadScopeStatus()
             }
         }
 
-        if (AutohomeState == AUTO_HOME_CONFIRM)
-        {
-            if (ah_confirm_timeout > 0)
-                ah_confirm_timeout -= 1;
-            if (ah_confirm_timeout == 0)
-            {
-                AutohomeState = AUTO_HOME_IDLE;
-                LOG_INFO("Autohome confirm timeout.");
-            }
-        }
-
         if (TrackState == SCOPE_AUTOHOMING)
         {
             uint32_t indexRA = 0, indexDE = 0;
@@ -1122,7 +1111,6 @@ bool EQMod::ReadScopeStatus()
             switch (AutohomeState)
             {
                 case AUTO_HOME_IDLE:
-                case AUTO_HOME_CONFIRM:
                     AutohomeState = AUTO_HOME_IDLE;
                     TrackState    = SCOPE_IDLE;
                     RememberTrackState = TrackState;
@@ -1410,9 +1398,9 @@ bool EQMod::ReadScopeStatus()
                         TrackState    = SCOPE_IDLE;
                         RememberTrackState = TrackState;
                         AutohomeState = AUTO_HOME_IDLE;
-                        AutoHomeSP.setState(IPS_IDLE);
-                        AutoHomeSP.reset();
-                        AutoHomeSP.apply();
+                        HomeSP.setState(IPS_IDLE);
+                        HomeSP.reset();
+                        HomeSP.apply();
                         LOG_INFO("Autohome: end");
                     }
                     else
@@ -2495,22 +2483,20 @@ bool EQMod::ISNewNumber(const char *dev, const char *name, double values[], char
         }
 
         // Guider interface
-        if (!strcmp(name, GuideNSNP.name) || !strcmp(name, GuideWENP.name))
+        if (GuideNSNP.isNameMatch(name) || GuideWENP.isNameMatch(name))
         {
             // Unless we're in track mode, we don't obey guide commands.
             if (TrackState != SCOPE_TRACKING)
             {
-                GuideNSNP.s = IPS_IDLE;
-                IDSetNumber(&GuideNSNP, nullptr);
-                GuideWENP.s = IPS_IDLE;
-                IDSetNumber(&GuideWENP, nullptr);
+                GuideNSNP.setState(IPS_IDLE);
+                GuideNSNP.apply();;
+                GuideWENP.setState(IPS_IDLE);
+                GuideWENP.apply();
                 LOG_WARN("Can not guide if not tracking.");
                 return true;
             }
 
-            processGuiderProperties(name, values, names, n);
-
-            return true;
+            return GI::processNumber(dev, name, values, names, n);
         }
         if (GuideRateNP.isNameMatch(name))
         {
@@ -2791,105 +2777,6 @@ bool EQMod::ISNewSwitch(const char *dev, const char *name, ISState *states, char
         }
 
         //if (MountInformationTP && MountInformationTP->tp && (!strcmp(MountInformationTP->tp[0].text, "EQ8") || !strcmp(MountInformationTP->tp[0].text, "AZEQ6"))) {
-        if (mount->HasHomeIndexers())
-        {
-            if (AutoHomeSP && AutoHomeSP.isNameMatch(name))
-            {
-                if ((TrackState != SCOPE_IDLE) && (TrackState != SCOPE_AUTOHOMING))
-                {
-                    if (TrackState != SCOPE_AUTOHOMING)
-                    {
-                        AutoHomeSP.setState(IPS_IDLE);
-                        AutoHomeSP.reset();
-                        AutoHomeSP.apply();
-                    }
-                    LOG_WARN("Can not start AutoHome. Scope not idle");
-                    return true;
-                }
-
-                if (TrackState == SCOPE_AUTOHOMING)
-                {
-                    AutoHomeSP.setState(IPS_IDLE);
-                    AutoHomeSP.reset();
-                    AutoHomeSP.apply();
-                    LOG_WARN("Aborting AutoHome.");
-                    Abort();
-                    return true;
-                }
-
-                if (AutohomeState == AUTO_HOME_IDLE)
-                {
-                    AutoHomeSP.setState(IPS_OK);
-                    AutoHomeSP.reset();
-                    AutoHomeSP.apply();
-                    LOG_WARN("*** AutoHome NOT TESTED. Press PERFORM AGAIN TO CONFIRM. ***");
-                    AutohomeState      = AUTO_HOME_CONFIRM;
-                    ah_confirm_timeout = 10;
-                    return true;
-                }
-                if (AutohomeState == AUTO_HOME_CONFIRM)
-                {
-                    AutoHomeSP.update(states, names, n);
-                    AutoHomeSP.setState(IPS_BUSY);
-                    LOG_INFO("Starting Autohome.");
-                    AutoHomeSP.apply();
-                    TrackState = SCOPE_AUTOHOMING;
-                    try
-                    {
-                        LOG_INFO("AutoHome phase 1: turning off aux encoders");
-                        mount->TurnRAEncoder(false);
-                        mount->TurnDEEncoder(false);
-                        LOG_INFO("AutoHome phase 1: resetting home position indexes");
-                        mount->ResetRAIndexer();
-                        mount->ResetDEIndexer();
-                        LOG_INFO(
-                            "AutoHome phase 1: reading home position indexes to set directions");
-                        mount->GetRAIndexer();
-                        mount->GetDEIndexer();
-                        LOGF_INFO(
-                            "AutoHome phase 1: read home position indexes: RA=0x%x DE=0x%x",
-                            mount->GetlastreadRAIndexer(), mount->GetlastreadDEIndexer());
-                        if (mount->GetlastreadRAIndexer() == 0)
-                            ah_bSlewingUp_RA = true;
-                        else
-                            ah_bSlewingUp_RA = false;
-                        if (mount->GetlastreadDEIndexer() == 0)
-                            ah_bSlewingUp_DE = true;
-                        else
-                            ah_bSlewingUp_DE = false;
-                        ah_iPosition_RA = mount->GetRAEncoder();
-                        ah_iPosition_DE = mount->GetDEEncoder();
-                        ah_iChanges     = (5 * mount->GetRAEncoderTotal()) / 360;
-                        if (ah_bSlewingUp_RA)
-                            ah_iPosition_RA = ah_iPosition_RA - ah_iChanges;
-                        else
-                            ah_iPosition_RA = ah_iPosition_RA + ah_iChanges;
-                        ah_iChanges = (5 * mount->GetDEEncoderTotal()) / 360;
-                        if (ah_bSlewingUp_DE)
-                            ah_iPosition_DE = ah_iPosition_DE - ah_iChanges;
-                        else
-                            ah_iPosition_DE = ah_iPosition_DE + ah_iChanges;
-                        LOG_INFO(
-                            "AutoHome phase 1: trying to move further away from home position");
-                        LOGF_INFO(
-                            "AutoHome phase 1: slewing to RA=0x%x (up=%c) DE=0x%x (up=%c)", ah_iPosition_RA,
-                            (ah_bSlewingUp_RA ? '1' : '0'), ah_iPosition_DE, (ah_bSlewingUp_DE ? '1' : '0'));
-                        mount->AbsSlewTo(ah_iPosition_RA, ah_iPosition_DE, ah_bSlewingUp_RA, ah_bSlewingUp_DE);
-                        AutohomeState = AUTO_HOME_WAIT_PHASE1;
-                    }
-                    catch (EQModError e)
-                    {
-                        AutoHomeSP.setState(IPS_ALERT);
-                        AutoHomeSP.reset();
-                        AutoHomeSP.apply();
-                        AutohomeState = AUTO_HOME_IDLE;
-                        TrackState    = SCOPE_IDLE;
-                        RememberTrackState = TrackState;
-                        return (e.DefaultHandleException(this));
-                    }
-                }
-            }
-        }
 
         if (mount->HasAuxEncoders())
         {
@@ -3300,19 +3187,19 @@ bool EQMod::Abort()
         }
     }
 
-    GuideNSNP.s = IPS_IDLE;
-    IDSetNumber(&GuideNSNP, nullptr);
-    GuideWENP.s = IPS_IDLE;
-    IDSetNumber(&GuideWENP, nullptr);
+    GuideNSNP.setState(IPS_IDLE);
+    GuideNSNP.apply();
+    GuideWENP.setState(IPS_IDLE);
+    GuideWENP.apply();
 #if 0
     TrackModeSP->s = IPS_IDLE;
     IUResetSwitch(TrackModeSP);
     IDSetSwitch(TrackModeSP, nullptr);
 #endif
     AutohomeState = AUTO_HOME_IDLE;
-    AutoHomeSP.setState(IPS_IDLE);
-    AutoHomeSP.reset();
-    AutoHomeSP.apply();
+    HomeSP.setState(IPS_IDLE);
+    HomeSP.reset();
+    HomeSP.apply();
 
     TrackState = SCOPE_IDLE;
     RememberTrackState = TrackState;
@@ -3718,4 +3605,82 @@ bool EQMod::SetTrackEnabled(bool enabled)
     }
 
     return true;
+}
+
+IPState EQMod::ExecuteHomeAction(TelescopeHomeAction action)
+{
+    if (action != HOME_FIND)
+        return IPS_ALERT;
+
+    if ((TrackState != SCOPE_IDLE) && (TrackState != SCOPE_AUTOHOMING))
+    {
+        LOG_WARN("Can not start AutoHome. Scope not idle");
+        return IPS_IDLE;
+    }
+
+    if (TrackState == SCOPE_AUTOHOMING)
+    {
+        LOG_WARN("Aborting AutoHome.");
+        Abort();
+        return IPS_IDLE;
+    }
+
+    if (AutohomeState == AUTO_HOME_IDLE)
+    {
+        LOG_INFO("Starting Autohome.");
+        TrackState = SCOPE_AUTOHOMING;
+        try
+        {
+            LOG_INFO("AutoHome phase 1: turning off aux encoders");
+            mount->TurnRAEncoder(false);
+            mount->TurnDEEncoder(false);
+            LOG_INFO("AutoHome phase 1: resetting home position indexes");
+            mount->ResetRAIndexer();
+            mount->ResetDEIndexer();
+            LOG_INFO(
+                "AutoHome phase 1: reading home position indexes to set directions");
+            mount->GetRAIndexer();
+            mount->GetDEIndexer();
+            LOGF_INFO(
+                "AutoHome phase 1: read home position indexes: RA=0x%x DE=0x%x",
+                mount->GetlastreadRAIndexer(), mount->GetlastreadDEIndexer());
+            if (mount->GetlastreadRAIndexer() == 0)
+                ah_bSlewingUp_RA = true;
+            else
+                ah_bSlewingUp_RA = false;
+            if (mount->GetlastreadDEIndexer() == 0)
+                ah_bSlewingUp_DE = true;
+            else
+                ah_bSlewingUp_DE = false;
+            ah_iPosition_RA = mount->GetRAEncoder();
+            ah_iPosition_DE = mount->GetDEEncoder();
+            ah_iChanges     = (5 * mount->GetRAEncoderTotal()) / 360;
+            if (ah_bSlewingUp_RA)
+                ah_iPosition_RA = ah_iPosition_RA - ah_iChanges;
+            else
+                ah_iPosition_RA = ah_iPosition_RA + ah_iChanges;
+            ah_iChanges = (5 * mount->GetDEEncoderTotal()) / 360;
+            if (ah_bSlewingUp_DE)
+                ah_iPosition_DE = ah_iPosition_DE - ah_iChanges;
+            else
+                ah_iPosition_DE = ah_iPosition_DE + ah_iChanges;
+            LOG_INFO(
+                "AutoHome phase 1: trying to move further away from home position");
+            LOGF_INFO(
+                "AutoHome phase 1: slewing to RA=0x%x (up=%c) DE=0x%x (up=%c)", ah_iPosition_RA,
+                (ah_bSlewingUp_RA ? '1' : '0'), ah_iPosition_DE, (ah_bSlewingUp_DE ? '1' : '0'));
+            mount->AbsSlewTo(ah_iPosition_RA, ah_iPosition_DE, ah_bSlewingUp_RA, ah_bSlewingUp_DE);
+            AutohomeState = AUTO_HOME_WAIT_PHASE1;
+            return IPS_BUSY;
+        }
+        catch (EQModError e)
+        {
+            AutohomeState = AUTO_HOME_IDLE;
+            TrackState    = SCOPE_IDLE;
+            RememberTrackState = TrackState;
+            return IPS_ALERT;
+        }
+    }
+
+    return IPS_ALERT;
 }

@@ -1,7 +1,7 @@
 #ifndef __tscam_h__
 #define __tscam_h__
 
-/* Version: 55.24621.20240204 */
+/* Version: 56.26054.20240715 */
 /*
    Platform & Architecture:
        (1) Win32:
@@ -92,21 +92,21 @@ extern "C" {
 /*                                                                              */
 /********************************************************************************/
 #if defined(TSCAM_HRESULT_ERRORCODE_NEEDED)
-#define S_OK                0x00000000 /* Success */
-#define S_FALSE             0x00000001 /* Yet another success */
-#define E_UNEXPECTED        0x8000ffff /* Catastrophic failure */
-#define E_NOTIMPL           0x80004001 /* Not supported or not implemented */
-#define E_NOINTERFACE       0x80004002
-#define E_ACCESSDENIED      0x80070005 /* Permission denied */
-#define E_OUTOFMEMORY       0x8007000e /* Out of memory */
-#define E_INVALIDARG        0x80070057 /* One or more arguments are not valid */
-#define E_POINTER           0x80004003 /* Pointer that is not valid */
-#define E_FAIL              0x80004005 /* Generic failure */
-#define E_WRONG_THREAD      0x8001010e /* Call function in the wrong thread */
-#define E_GEN_FAILURE       0x8007001f /* Device not functioning */
-#define E_BUSY              0x800700aa /* The requested resource is in use */
-#define E_PENDING           0x8000000a /* The data necessary to complete this operation is not yet available */
-#define E_TIMEOUT           0x8001011f /* This operation returned because the timeout period expired */
+#define S_OK                (HRESULT)(0x00000000) /* Success */
+#define S_FALSE             (HRESULT)(0x00000001) /* Yet another success */
+#define E_UNEXPECTED        (HRESULT)(0x8000ffff) /* Catastrophic failure */
+#define E_NOTIMPL           (HRESULT)(0x80004001) /* Not supported or not implemented */
+#define E_NOINTERFACE       (HRESULT)(0x80004002)
+#define E_ACCESSDENIED      (HRESULT)(0x80070005) /* Permission denied */
+#define E_OUTOFMEMORY       (HRESULT)(0x8007000e) /* Out of memory */
+#define E_INVALIDARG        (HRESULT)(0x80070057) /* One or more arguments are not valid */
+#define E_POINTER           (HRESULT)(0x80004003) /* Pointer that is not valid */
+#define E_FAIL              (HRESULT)(0x80004005) /* Generic failure */
+#define E_WRONG_THREAD      (HRESULT)(0x8001010e) /* Call function in the wrong thread */
+#define E_GEN_FAILURE       (HRESULT)(0x8007001f) /* Device not functioning */
+#define E_BUSY              (HRESULT)(0x800700aa) /* The requested resource is in use */
+#define E_PENDING           (HRESULT)(0x8000000a) /* The data necessary to complete this operation is not yet available */
+#define E_TIMEOUT           (HRESULT)(0x8001011f) /* This operation returned because the timeout period expired */
 #endif
 
 /* handle */
@@ -187,11 +187,11 @@ typedef struct Tscam_t { int unused; } *HTscam;
 #define TSCAM_SATURATION_MIN           0       /* saturation */
 #define TSCAM_SATURATION_MAX           255     /* saturation */
 #define TSCAM_BRIGHTNESS_DEF           0       /* brightness */
-#define TSCAM_BRIGHTNESS_MIN           (-64)   /* brightness */
-#define TSCAM_BRIGHTNESS_MAX           64      /* brightness */
+#define TSCAM_BRIGHTNESS_MIN           (-128)  /* brightness */
+#define TSCAM_BRIGHTNESS_MAX           128     /* brightness */
 #define TSCAM_CONTRAST_DEF             0       /* contrast */
-#define TSCAM_CONTRAST_MIN             (-100)  /* contrast */
-#define TSCAM_CONTRAST_MAX             100     /* contrast */
+#define TSCAM_CONTRAST_MIN             (-150)  /* contrast */
+#define TSCAM_CONTRAST_MAX             150     /* contrast */
 #define TSCAM_GAMMA_DEF                100     /* gamma */
 #define TSCAM_GAMMA_MIN                20      /* gamma */
 #define TSCAM_GAMMA_MAX                180     /* gamma */
@@ -220,18 +220,15 @@ typedef struct Tscam_t { int unused; } *HTscam;
 #define TSCAM_AUTOEXPO_THRESHOLD_DEF   5       /* auto exposure threshold */
 #define TSCAM_AUTOEXPO_THRESHOLD_MIN   2       /* auto exposure threshold */
 #define TSCAM_AUTOEXPO_THRESHOLD_MAX   15      /* auto exposure threshold */
-#define TSCAM_AUTOEXPO_DAMP_DEF        0      /* auto exposure damp: thousandths */
-#define TSCAM_AUTOEXPO_DAMP_MIN        0       /* auto exposure damp: thousandths */
-#define TSCAM_AUTOEXPO_DAMP_MAX        1000    /* auto exposure damp: thousandths */
+#define TSCAM_AUTOEXPO_DAMP_DEF        0       /* auto exposure damping coefficient: thousandths */
+#define TSCAM_AUTOEXPO_DAMP_MIN        0       /* auto exposure damping coefficient: thousandths */
+#define TSCAM_AUTOEXPO_DAMP_MAX        1000    /* auto exposure damping coefficient: thousandths */
 #define TSCAM_BANDWIDTH_DEF            100     /* bandwidth */
 #define TSCAM_BANDWIDTH_MIN            1       /* bandwidth */
 #define TSCAM_BANDWIDTH_MAX            100     /* bandwidth */
 #define TSCAM_DENOISE_DEF              0       /* denoise */
 #define TSCAM_DENOISE_MIN              0       /* denoise */
 #define TSCAM_DENOISE_MAX              100     /* denoise */
-#define TSCAM_TEC_TARGET_MIN           (-500)  /* TEC target: -50.0 degrees Celsius */
-#define TSCAM_TEC_TARGET_DEF           100     /* 10.0 degrees Celsius */
-#define TSCAM_TEC_TARGET_MAX           400     /* TEC target: 40.0 degrees Celsius */
 #define TSCAM_HEARTBEAT_MIN            100     /* millisecond */
 #define TSCAM_HEARTBEAT_MAX            10000   /* millisecond */
 #define TSCAM_AE_PERCENT_MIN           0       /* auto exposure percent; 0 or 100 => full roi average, means "disabled" */
@@ -239,12 +236,12 @@ typedef struct Tscam_t { int unused; } *HTscam;
 #define TSCAM_AE_PERCENT_DEF           10      /* auto exposure percent: enabled, percentage = 10% */
 #define TSCAM_NOPACKET_TIMEOUT_MIN     500     /* no packet timeout minimum: 500ms */
 #define TSCAM_NOFRAME_TIMEOUT_MIN      500     /* no frame timeout minimum: 500ms */
-#define TSCAM_DYNAMIC_DEFECT_T1_MIN    10      /* dynamic defect pixel correction, threshold, means: 1.0 */
-#define TSCAM_DYNAMIC_DEFECT_T1_MAX    100     /* means: 10.0 */
-#define TSCAM_DYNAMIC_DEFECT_T1_DEF    13      /* means: 1.3 */
-#define TSCAM_DYNAMIC_DEFECT_T2_MIN    0       /* dynamic defect pixel correction, value, means: 0.00 */
-#define TSCAM_DYNAMIC_DEFECT_T2_MAX    100     /* means: 1.00 */
-#define TSCAM_DYNAMIC_DEFECT_T2_DEF    100
+#define TSCAM_DYNAMIC_DEFECT_T1_MIN    0       /* dynamic defect pixel correction, dead pixel ratio: the smaller the dead ratio is, the more stringent the conditions for processing dead pixels are, and fewer pixels will be processed */
+#define TSCAM_DYNAMIC_DEFECT_T1_MAX    100     /* means: 1.0 */
+#define TSCAM_DYNAMIC_DEFECT_T1_DEF    90      /* means: 0.9 */
+#define TSCAM_DYNAMIC_DEFECT_T2_MIN    0       /* dynamic defect pixel correction, hot pixel ratio: the smaller the hot ratio is, the more stringent the conditions for processing hot pixels are, and fewer pixels will be processed */
+#define TSCAM_DYNAMIC_DEFECT_T2_MAX    100
+#define TSCAM_DYNAMIC_DEFECT_T2_DEF    90
 #define TSCAM_HDR_K_MIN                1       /* HDR synthesize */
 #define TSCAM_HDR_K_MAX                25500
 #define TSCAM_HDR_B_MIN                0
@@ -275,21 +272,21 @@ typedef struct {
     float               xpixsz;      /* physical pixel size in micrometer */
     float               ypixsz;      /* physical pixel size in micrometer */
     TscamResolution   res[16];
-} TscamModelV2; /* camera model v2 */
+} TscamModelV2; /* device model v2 */
 
 typedef struct {
 #if defined(_WIN32)
-    wchar_t               displayname[64];    /* display name */
+    wchar_t               displayname[64];    /* display name: model name or user-defined name (if any and Tscam_EnumWithName) */
     wchar_t               id[64];             /* unique and opaque id of a connected camera, for Tscam_Open */
 #else
-    char                  displayname[64];    /* display name */
+    char                  displayname[64];    /* display name: model name or user-defined name (if any and Tscam_EnumWithName) */
     char                  id[64];             /* unique and opaque id of a connected camera, for Tscam_Open */
 #endif
     const TscamModelV2* model;
-} TscamDeviceV2; /* camera instance for enumerating */
+} TscamDeviceV2; /* device instance for enumerating */
 
 /*
-    get the version of this dll/so/dylib, which is: 55.24621.20240204
+    get the version of this dll/so/dylib, which is: 56.26054.20240715
 */
 #if defined(_WIN32)
 TSCAM_API(const wchar_t*)   Tscam_Version();
@@ -483,11 +480,11 @@ TSCAM_API(HRESULT)  Tscam_Trigger(HTscam h, unsigned short nNumber);
 
 /*
     trigger synchronously
-    nTimeout:   0:              by default, exposure * 102% + 4000 milliseconds
+    nWaitMS:    0:              by default, exposure * 102% + 4000 milliseconds
                 0xffffffff:     wait infinite
                 other:          milliseconds to wait
 */
-TSCAM_API(HRESULT)  Tscam_TriggerSync(HTscam h, unsigned nTimeout, void* pImageData, int bits, int rowPitch, TscamFrameInfoV3* pInfo);
+TSCAM_API(HRESULT)  Tscam_TriggerSync(HTscam h, unsigned nWaitMS, void* pImageData, int bits, int rowPitch, TscamFrameInfoV3* pInfo);
 
 /*
     put_Size, put_eSize, can be used to set the video output resolution BEFORE Tscam_StartXXXX.
@@ -542,10 +539,10 @@ TSCAM_API(HRESULT)  Tscam_get_RawFormat(HTscam h, unsigned* pFourCC, unsigned* p
     |-----------------------------------------------------------------|
     | Auto Exposure Target    |   10~220      |   120                 |
     | Exposure Gain           |   100~        |   100                 |
-    | Temp                    |   2000~15000  |   6503                |
-    | Tint                    |   200~2500    |   1000                |
+    | Temp                    |   1000~25000  |   6503                |
+    | Tint                    |   100~2500    |   1000                |
     | LevelRange              |   0~255       |   Low = 0, High = 255 |
-    | Contrast                |   -100~100    |   0                   |
+    | Contrast                |   -150~150    |   0                   |
     | Hue                     |   -180~180    |   0                   |
     | Saturation              |   0~255       |   128                 |
     | Brightness              |   -64~64      |   0                   |
@@ -626,33 +623,33 @@ TSCAM_API(HRESULT)  Tscam_get_BlackBalance(HTscam h, unsigned short aSub[3]);
 /* Flat Field Correction */
 TSCAM_API(HRESULT)  Tscam_FfcOnce(HTscam h);
 #if defined(_WIN32)
-TSCAM_API(HRESULT)  Tscam_FfcExport(HTscam h, const wchar_t* filepath);
-TSCAM_API(HRESULT)  Tscam_FfcImport(HTscam h, const wchar_t* filepath);
+TSCAM_API(HRESULT)  Tscam_FfcExport(HTscam h, const wchar_t* filePath);
+TSCAM_API(HRESULT)  Tscam_FfcImport(HTscam h, const wchar_t* filePath);
 #else
-TSCAM_API(HRESULT)  Tscam_FfcExport(HTscam h, const char* filepath);
-TSCAM_API(HRESULT)  Tscam_FfcImport(HTscam h, const char* filepath);
+TSCAM_API(HRESULT)  Tscam_FfcExport(HTscam h, const char* filePath);
+TSCAM_API(HRESULT)  Tscam_FfcImport(HTscam h, const char* filePath);
 #endif
 
 /* Dark Field Correction */
 TSCAM_API(HRESULT)  Tscam_DfcOnce(HTscam h);
 
 #if defined(_WIN32)
-TSCAM_API(HRESULT)  Tscam_DfcExport(HTscam h, const wchar_t* filepath);
-TSCAM_API(HRESULT)  Tscam_DfcImport(HTscam h, const wchar_t* filepath);
+TSCAM_API(HRESULT)  Tscam_DfcExport(HTscam h, const wchar_t* filePath);
+TSCAM_API(HRESULT)  Tscam_DfcImport(HTscam h, const wchar_t* filePath);
 #else
-TSCAM_API(HRESULT)  Tscam_DfcExport(HTscam h, const char* filepath);
-TSCAM_API(HRESULT)  Tscam_DfcImport(HTscam h, const char* filepath);
+TSCAM_API(HRESULT)  Tscam_DfcExport(HTscam h, const char* filePath);
+TSCAM_API(HRESULT)  Tscam_DfcImport(HTscam h, const char* filePath);
 #endif
 
 /* Fix Pattern Noise Correction */
 TSCAM_API(HRESULT)  Tscam_FpncOnce(HTscam h);
 
 #if defined(_WIN32)
-TSCAM_API(HRESULT)  Tscam_FpncExport(HTscam h, const wchar_t* filepath);
-TSCAM_API(HRESULT)  Tscam_FpncImport(HTscam h, const wchar_t* filepath);
+TSCAM_API(HRESULT)  Tscam_FpncExport(HTscam h, const wchar_t* filePath);
+TSCAM_API(HRESULT)  Tscam_FpncImport(HTscam h, const wchar_t* filePath);
 #else
-TSCAM_API(HRESULT)  Tscam_FpncExport(HTscam h, const char* filepath);
-TSCAM_API(HRESULT)  Tscam_FpncImport(HTscam h, const char* filepath);
+TSCAM_API(HRESULT)  Tscam_FpncExport(HTscam h, const char* filePath);
+TSCAM_API(HRESULT)  Tscam_FpncImport(HTscam h, const char* filePath);
 #endif
 
 TSCAM_API(HRESULT)  Tscam_put_Hue(HTscam h, int Hue);
@@ -821,7 +818,7 @@ TSCAM_API(HRESULT)  Tscam_read_EEPROM(HTscam h, unsigned addr, unsigned char* pB
 TSCAM_API(HRESULT)  Tscam_read_Pipe(HTscam h, unsigned pipeId, void* pBuffer, unsigned nBufferLen);
 TSCAM_API(HRESULT)  Tscam_write_Pipe(HTscam h, unsigned pipeId, const void* pBuffer, unsigned nBufferLen);
 TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
-                                             
+
 #define TSCAM_OPTION_NOFRAME_TIMEOUT        0x01       /* no frame timeout: 0 => disable, positive value (>= TSCAM_NOFRAME_TIMEOUT_MIN) => timeout milliseconds. default: disable */
 #define TSCAM_OPTION_THREAD_PRIORITY        0x02       /* set the priority of the internal thread which grab data from the usb device.
                                                              Win: iValue: 0 => THREAD_PRIORITY_NORMAL; 1 => THREAD_PRIORITY_ABOVE_NORMAL; 2 => THREAD_PRIORITY_HIGHEST; 3 => THREAD_PRIORITY_TIME_CRITICAL; default: 1; see: https://docs.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-setthreadpriority
@@ -847,7 +844,7 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
                                                              3: Gain Preferred
                                                              default value: 1
                                                          */
-#define TSCAM_OPTION_FRAMERATE              0x11       /* limit the frame rate, range=[0, 63], the default value 0 means no limit */
+#define TSCAM_OPTION_FRAMERATE              0x11       /* limit the frame rate, the default value 0 means no limit */
 #define TSCAM_OPTION_DEMOSAIC               0x12       /* demosaic method for both video and still image: BILINEAR = 0, VNG(Variable Number of Gradients) = 1, PPG(Patterned Pixel Grouping) = 2, AHD(Adaptive Homogeneity Directed) = 3, EA(Edge Aware) = 4, see https://en.wikipedia.org/wiki/Demosaicing, default value: 0 */
 #define TSCAM_OPTION_DEMOSAIC_VIDEO         0x13       /* demosaic method for video */
 #define TSCAM_OPTION_DEMOSAIC_STILL         0x14       /* demosaic method for still image */
@@ -1007,8 +1004,8 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
                                                          */
 #define TSCAM_OPTION_HIGH_FULLWELL          0x55       /* high fullwell capacity: 0 => disable, 1 => enable */
 #define TSCAM_OPTION_DYNAMIC_DEFECT         0x56       /* dynamic defect pixel correction:
-                                                                threshold, t1: (high 16 bits): [10, 100], means: [1.0, 10.0]
-                                                                value, t2: (low 16 bits): [0, 100], means: [0.00, 1.00]
+                                                                dead pixel ratio, t1: (high 16 bits): [0, 100], means: [0.0, 1.0]
+                                                                hot pixel ratio, t2: (low 16 bits): [0, 100], means: [0.0, 1.0]
                                                          */
 #define TSCAM_OPTION_HDR_KB                 0x57       /* HDR synthesize
                                                                 K (high 16 bits): [1, 25500]
@@ -1021,8 +1018,8 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
                                                          */
 #define TSCAM_OPTION_GIGETIMEOUT            0x5a       /* For GigE cameras, the application periodically sends heartbeat signals to the camera to keep the connection to the camera alive.
                                                             If the camera doesn't receive heartbeat signals within the time period specified by the heartbeat timeout counter, the camera resets the connection.
-                                                            When the application is stopped by the debugger, the application cannot create the heartbeat signals
-                                                                0 => auto: when the camera is opened, disable if debugger is present or enable if no debugger is present
+                                                            When the application is stopped by the debugger, the application cannot send the heartbeat signals
+                                                                0 => auto: when the camera is opened, enable if no debugger is present or disable if debugger is present
                                                                 1 => enable
                                                                 2 => disable
                                                                 default: auto
@@ -1032,8 +1029,8 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
 #define TSCAM_OPTION_OVERCLOCK              0x5d       /* overclock, default: 0 */
 #define TSCAM_OPTION_RESET_SENSOR           0x5e       /* reset sensor */
 #define TSCAM_OPTION_ISP                    0x5f       /* Enable hardware ISP: 0 => auto (disable in RAW mode, otherwise enable), 1 => enable, -1 => disable; default: 0 */
-#define TSCAM_OPTION_AUTOEXP_EXPOTIME_DAMP  0x60       /* Auto exposure damp: time (thousandths) */
-#define TSCAM_OPTION_AUTOEXP_GAIN_DAMP      0x61       /* Auto exposure damp: gain (thousandths) */
+#define TSCAM_OPTION_AUTOEXP_EXPOTIME_DAMP  0x60       /* Auto exposure damping coefficient: time (thousandths). The larger the damping coefficient, the smoother and slower the exposure time changes */
+#define TSCAM_OPTION_AUTOEXP_GAIN_DAMP      0x61       /* Auto exposure damping coefficient: gain (thousandths). The larger the damping coefficient, the smoother and slower the gain changes */
 #define TSCAM_OPTION_MOTOR_NUMBER           0x62       /* range: [1, 20] */
 #define TSCAM_OPTION_MOTOR_POS              0x10000000 /* range: [1, 702] */
 #define TSCAM_OPTION_PSEUDO_COLOR_START     0x63       /* Pseudo: start color, BGR format */
@@ -1063,6 +1060,9 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
                                                                     21 => twilight
                                                                     22 => twilight_shifted
                                                                     23 => turbo
+                                                                    24 => red
+                                                                    25 => green
+                                                                    26 => blue
                                                          */
 #define TSCAM_OPTION_LOW_POWERCONSUMPTION   0x66       /* Low Power Consumption: 0 => disable, 1 => enable */
 #define TSCAM_OPTION_FPNC                   0x67       /* Fix Pattern Noise Correction
@@ -1079,11 +1079,20 @@ TSCAM_API(HRESULT)  Tscam_feed_Pipe(HTscam h, unsigned pipeId);
 #define TSCAM_OPTION_OVEREXP_POLICY         0x68       /* Auto exposure over exposure policy: when overexposed,
                                                                 0 => directly reduce the exposure time/gain to the minimum value; or
                                                                 1 => reduce exposure time/gain in proportion to current and target brightness.
+                                                                n(n>1) => first adjust the exposure time to (maximum automatic exposure time * maximum automatic exposure gain) * n / 1000, and then adjust according to the strategy of 1
                                                             The advantage of policy 0 is that the convergence speed is faster, but there is black screen.
                                                             Policy 1 avoids the black screen, but the convergence speed is slower.
                                                             Default: 0
                                                          */
 #define TSCAM_OPTION_READOUT_MODE           0x69       /* Readout mode: 0 = IWR (Integrate While Read), 1 = ITR (Integrate Then Read) */
+#define TSCAM_OPTION_TAILLIGHT              0x6a       /* Turn on/off tail Led light: 0 => off, 1 => on; default: on */
+#define TSCAM_OPTION_LENSSTATE              0x6b       /* Load/Save lens state to EEPROM: 0 => load, 1 => save */
+#define TSCAM_OPTION_AWB_CONTINUOUS         0x6c       /* Auto White Balance: continuous mode
+                                                                0:  disable (default)
+                                                                n>0: every n millisecond(s)
+                                                                n<0: every -n frame
+                                                         */
+#define TSCAM_OPTION_TECTARGET_RANGE        0x6d       /* TEC target range: min(low 16 bits) = (short)(val & 0xffff), max(high 16 bits) = (short)((val >> 16) & 0xffff) */
 
 /* pixel format */
 #define TSCAM_PIXELFORMAT_RAW8              0x00
@@ -1124,92 +1133,105 @@ TSCAM_API(HRESULT)  Tscam_get_Option(HTscam h, unsigned iOption, int* piValue);
 TSCAM_API(HRESULT)  Tscam_put_Roi(HTscam h, unsigned xOffset, unsigned yOffset, unsigned xWidth, unsigned yHeight);
 TSCAM_API(HRESULT)  Tscam_get_Roi(HTscam h, unsigned* pxOffset, unsigned* pyOffset, unsigned* pxWidth, unsigned* pyHeight);
 
+/* multiple Roi */
+TSCAM_API(HRESULT)  Tscam_put_RoiN(HTscam h, unsigned xOffset[], unsigned yOffset[], unsigned xWidth[], unsigned yHeight[], unsigned Num);
+
 TSCAM_API(HRESULT)  Tscam_put_XY(HTscam h, int x, int y);
 
-#define TSCAM_IOCONTROLTYPE_GET_SUPPORTEDMODE           0x01 /* 0x01 => Input, 0x02 => Output, (0x01 | 0x02) => support both Input and Output */
-#define TSCAM_IOCONTROLTYPE_GET_GPIODIR                 0x03 /* 0x00 => Input, 0x01 => Output */
-#define TSCAM_IOCONTROLTYPE_SET_GPIODIR                 0x04
-#define TSCAM_IOCONTROLTYPE_GET_FORMAT                  0x05 /*
-                                                                   0x00 => not connected
-                                                                   0x01 => Tri-state: Tri-state mode (Not driven)
-                                                                   0x02 => TTL: TTL level signals
-                                                                   0x03 => LVDS: LVDS level signals
-                                                                   0x04 => RS422: RS422 level signals
-                                                                   0x05 => Opto-coupled
-                                                               */
-#define TSCAM_IOCONTROLTYPE_SET_FORMAT                  0x06
-#define TSCAM_IOCONTROLTYPE_GET_OUTPUTINVERTER          0x07 /* boolean, only support output signal */
-#define TSCAM_IOCONTROLTYPE_SET_OUTPUTINVERTER          0x08
-#define TSCAM_IOCONTROLTYPE_GET_INPUTACTIVATION         0x09 /* 0x00 => Rising edge, 0x01 => Falling edge, 0x02 => Level high, 0x03 => Level low */
-#define TSCAM_IOCONTROLTYPE_SET_INPUTACTIVATION         0x0a
-#define TSCAM_IOCONTROLTYPE_GET_DEBOUNCERTIME           0x0b /* debouncer time in microseconds, range: [0, 20000] */
-#define TSCAM_IOCONTROLTYPE_SET_DEBOUNCERTIME           0x0c
-#define TSCAM_IOCONTROLTYPE_GET_TRIGGERSOURCE           0x0d /*
-                                                                  0x00 => Opto-isolated input
-                                                                  0x01 => GPIO0
-                                                                  0x02 => GPIO1
-                                                                  0x03 => Counter
-                                                                  0x04 => PWM
-                                                                  0x05 => Software
-                                                               */
-#define TSCAM_IOCONTROLTYPE_SET_TRIGGERSOURCE           0x0e
-#define TSCAM_IOCONTROLTYPE_GET_TRIGGERDELAY            0x0f /* Trigger delay time in microseconds, range: [0, 5000000] */
-#define TSCAM_IOCONTROLTYPE_SET_TRIGGERDELAY            0x10
-#define TSCAM_IOCONTROLTYPE_GET_BURSTCOUNTER            0x11 /* Burst Counter, range: [1 ~ 65535] */
-#define TSCAM_IOCONTROLTYPE_SET_BURSTCOUNTER            0x12
-#define TSCAM_IOCONTROLTYPE_GET_COUNTERSOURCE           0x13 /* 0x00 => Opto-isolated input, 0x01 => GPIO0, 0x02 => GPIO1 */
-#define TSCAM_IOCONTROLTYPE_SET_COUNTERSOURCE           0x14
-#define TSCAM_IOCONTROLTYPE_GET_COUNTERVALUE            0x15 /* Counter Value, range: [1 ~ 65535] */
-#define TSCAM_IOCONTROLTYPE_SET_COUNTERVALUE            0x16
-#define TSCAM_IOCONTROLTYPE_SET_RESETCOUNTER            0x18
-#define TSCAM_IOCONTROLTYPE_GET_PWM_FREQ                0x19
-#define TSCAM_IOCONTROLTYPE_SET_PWM_FREQ                0x1a
-#define TSCAM_IOCONTROLTYPE_GET_PWM_DUTYRATIO           0x1b
-#define TSCAM_IOCONTROLTYPE_SET_PWM_DUTYRATIO           0x1c
-#define TSCAM_IOCONTROLTYPE_GET_PWMSOURCE               0x1d /* 0x00 => Opto-isolated input, 0x01 => GPIO0, 0x02 => GPIO1 */
-#define TSCAM_IOCONTROLTYPE_SET_PWMSOURCE               0x1e
-#define TSCAM_IOCONTROLTYPE_GET_OUTPUTMODE              0x1f /*
-                                                                  0x00 => Frame Trigger Wait
-                                                                  0x01 => Exposure Active
-                                                                  0x02 => Strobe
-                                                                  0x03 => User output
-                                                                  0x04 => Counter Output
-                                                                  0x05 => Timer Output
-                                                               */
-#define TSCAM_IOCONTROLTYPE_SET_OUTPUTMODE              0x20
-#define TSCAM_IOCONTROLTYPE_GET_STROBEDELAYMODE         0x21 /* boolean, 0 => pre-delay, 1 => delay; compared to exposure active signal */
-#define TSCAM_IOCONTROLTYPE_SET_STROBEDELAYMODE         0x22
-#define TSCAM_IOCONTROLTYPE_GET_STROBEDELAYTIME         0x23 /* Strobe delay or pre-delay time in microseconds, range: [0, 5000000] */
-#define TSCAM_IOCONTROLTYPE_SET_STROBEDELAYTIME         0x24
-#define TSCAM_IOCONTROLTYPE_GET_STROBEDURATION          0x25 /* Strobe duration time in microseconds, range: [0, 5000000] */
-#define TSCAM_IOCONTROLTYPE_SET_STROBEDURATION          0x26
-#define TSCAM_IOCONTROLTYPE_GET_USERVALUE               0x27 /*
-                                                                  bit0 => Opto-isolated output
-                                                                  bit1 => GPIO0 output
-                                                                  bit2 => GPIO1 output
-                                                               */
-#define TSCAM_IOCONTROLTYPE_SET_USERVALUE               0x28
-#define TSCAM_IOCONTROLTYPE_GET_UART_ENABLE             0x29 /* enable: 1 => on; 0 => off */
-#define TSCAM_IOCONTROLTYPE_SET_UART_ENABLE             0x2a
-#define TSCAM_IOCONTROLTYPE_GET_UART_BAUDRATE           0x2b /* baud rate: 0 => 9600; 1 => 19200; 2 => 38400; 3 => 57600; 4 => 115200 */
-#define TSCAM_IOCONTROLTYPE_SET_UART_BAUDRATE           0x2c
-#define TSCAM_IOCONTROLTYPE_GET_UART_LINEMODE           0x2d /* line mode: 0 => TX(GPIO_0)/RX(GPIO_1); 1 => TX(GPIO_1)/RX(GPIO_0) */
-#define TSCAM_IOCONTROLTYPE_SET_UART_LINEMODE           0x2e
-#define TSCAM_IOCONTROLTYPE_GET_EXPO_ACTIVE_MODE        0x2f /* exposure time signal: 0 => specified line, 1 => common exposure time */
-#define TSCAM_IOCONTROLTYPE_SET_EXPO_ACTIVE_MODE        0x30
-#define TSCAM_IOCONTROLTYPE_GET_EXPO_START_LINE         0x31 /* exposure start line, default: 0 */
-#define TSCAM_IOCONTROLTYPE_SET_EXPO_START_LINE         0x32
-#define TSCAM_IOCONTROLTYPE_GET_EXPO_END_LINE           0x33 /* exposure end line, default: 0
-                                                                  end line must be no less than start line
-                                                               */
-#define TSCAM_IOCONTROLTYPE_SET_EXPO_END_LINE           0x34
-#define TSCAM_IOCONTROLTYPE_GET_EXEVT_ACTIVE_MODE       0x35 /* exposure event: 0 => specified line, 1 => common exposure time */
-#define TSCAM_IOCONTROLTYPE_SET_EXEVT_ACTIVE_MODE       0x36
-#define TSCAM_IOCONTROLTYPE_GET_OUTPUTCOUNTERVALUE      0x37 /* Output Counter Value, range: [0 ~ 65535] */
-#define TSCAM_IOCONTROLTYPE_SET_OUTPUTCOUNTERVALUE      0x38
-#define TSCAM_IOCONTROLTYPE_SET_OUTPUT_PAUSE            0x3a /* Output pause: 1 => puase, 0 => unpause */
+#define TSCAM_IOCONTROLTYPE_GET_SUPPORTEDMODE            0x01 /* 0x01 => Input, 0x02 => Output, (0x01 | 0x02) => support both Input and Output */
+#define TSCAM_IOCONTROLTYPE_GET_GPIODIR                  0x03 /* 0x00 => Input, 0x01 => Output */
+#define TSCAM_IOCONTROLTYPE_SET_GPIODIR                  0x04
+#define TSCAM_IOCONTROLTYPE_GET_FORMAT                   0x05 /*
+                                                                    0x00 => not connected
+                                                                    0x01 => Tri-state: Tri-state mode (Not driven)
+                                                                    0x02 => TTL: TTL level signals
+                                                                    0x03 => LVDS: LVDS level signals
+                                                                    0x04 => RS422: RS422 level signals
+                                                                    0x05 => Opto-coupled
+                                                                */
+#define TSCAM_IOCONTROLTYPE_SET_FORMAT                   0x06
+#define TSCAM_IOCONTROLTYPE_GET_OUTPUTINVERTER           0x07 /* boolean, only support output signal */
+#define TSCAM_IOCONTROLTYPE_SET_OUTPUTINVERTER           0x08
+#define TSCAM_IOCONTROLTYPE_GET_INPUTACTIVATION          0x09 /* 0x00 => Rising edge, 0x01 => Falling edge, 0x02 => Level high, 0x03 => Level low */
+#define TSCAM_IOCONTROLTYPE_SET_INPUTACTIVATION          0x0a
+#define TSCAM_IOCONTROLTYPE_GET_DEBOUNCERTIME            0x0b /* debouncer time in microseconds, range: [0, 20000] */
+#define TSCAM_IOCONTROLTYPE_SET_DEBOUNCERTIME            0x0c
+#define TSCAM_IOCONTROLTYPE_GET_TRIGGERSOURCE            0x0d /*
+                                                                   0x00 => Opto-isolated input
+                                                                   0x01 => GPIO0
+                                                                   0x02 => GPIO1
+                                                                   0x03 => Counter
+                                                                   0x04 => PWM
+                                                                   0x05 => Software
+                                                                */
+#define TSCAM_IOCONTROLTYPE_SET_TRIGGERSOURCE            0x0e
+#define TSCAM_IOCONTROLTYPE_GET_TRIGGERDELAY             0x0f /* Trigger delay time in microseconds, range: [0, 5000000] */
+#define TSCAM_IOCONTROLTYPE_SET_TRIGGERDELAY             0x10
+#define TSCAM_IOCONTROLTYPE_GET_BURSTCOUNTER             0x11 /* Burst Counter, range: [1 ~ 65535] */
+#define TSCAM_IOCONTROLTYPE_SET_BURSTCOUNTER             0x12
+#define TSCAM_IOCONTROLTYPE_GET_COUNTERSOURCE            0x13 /* 0x00 => Opto-isolated input, 0x01 => GPIO0, 0x02 => GPIO1 */
+#define TSCAM_IOCONTROLTYPE_SET_COUNTERSOURCE            0x14
+#define TSCAM_IOCONTROLTYPE_GET_COUNTERVALUE             0x15 /* Counter Value, range: [1 ~ 65535] */
+#define TSCAM_IOCONTROLTYPE_SET_COUNTERVALUE             0x16
+#define TSCAM_IOCONTROLTYPE_SET_RESETCOUNTER             0x18
+#define TSCAM_IOCONTROLTYPE_GET_PWM_FREQ                 0x19
+#define TSCAM_IOCONTROLTYPE_SET_PWM_FREQ                 0x1a
+#define TSCAM_IOCONTROLTYPE_GET_PWM_DUTYRATIO            0x1b
+#define TSCAM_IOCONTROLTYPE_SET_PWM_DUTYRATIO            0x1c
+#define TSCAM_IOCONTROLTYPE_GET_PWMSOURCE                0x1d /* 0x00 => Opto-isolated input, 0x01 => GPIO0, 0x02 => GPIO1 */
+#define TSCAM_IOCONTROLTYPE_SET_PWMSOURCE                0x1e
+#define TSCAM_IOCONTROLTYPE_GET_OUTPUTMODE               0x1f /*
+                                                                   0x00 => Frame Trigger Wait
+                                                                   0x01 => Exposure Active
+                                                                   0x02 => Strobe
+                                                                   0x03 => User output
+                                                                   0x04 => Counter Output
+                                                                   0x05 => Timer Output
+                                                                */
+#define TSCAM_IOCONTROLTYPE_SET_OUTPUTMODE               0x20
+#define TSCAM_IOCONTROLTYPE_GET_STROBEDELAYMODE          0x21 /* boolean, 0 => pre-delay, 1 => delay; compared to exposure active signal */
+#define TSCAM_IOCONTROLTYPE_SET_STROBEDELAYMODE          0x22
+#define TSCAM_IOCONTROLTYPE_GET_STROBEDELAYTIME          0x23 /* Strobe delay or pre-delay time in microseconds, range: [0, 5000000] */
+#define TSCAM_IOCONTROLTYPE_SET_STROBEDELAYTIME          0x24
+#define TSCAM_IOCONTROLTYPE_GET_STROBEDURATION           0x25 /* Strobe duration time in microseconds, range: [0, 5000000] */
+#define TSCAM_IOCONTROLTYPE_SET_STROBEDURATION           0x26
+#define TSCAM_IOCONTROLTYPE_GET_USERVALUE                0x27 /*
+                                                                   bit0 => Opto-isolated output
+                                                                   bit1 => GPIO0 output
+                                                                   bit2 => GPIO1 output
+                                                                */
+#define TSCAM_IOCONTROLTYPE_SET_USERVALUE                0x28
+#define TSCAM_IOCONTROLTYPE_GET_UART_ENABLE              0x29 /* enable: 1 => on; 0 => off */
+#define TSCAM_IOCONTROLTYPE_SET_UART_ENABLE              0x2a
+#define TSCAM_IOCONTROLTYPE_GET_UART_BAUDRATE            0x2b /* baud rate: 0 => 9600; 1 => 19200; 2 => 38400; 3 => 57600; 4 => 115200 */
+#define TSCAM_IOCONTROLTYPE_SET_UART_BAUDRATE            0x2c
+#define TSCAM_IOCONTROLTYPE_GET_UART_LINEMODE            0x2d /* line mode: 0 => TX(GPIO_0)/RX(GPIO_1); 1 => TX(GPIO_1)/RX(GPIO_0) */
+#define TSCAM_IOCONTROLTYPE_SET_UART_LINEMODE            0x2e
+#define TSCAM_IOCONTROLTYPE_GET_EXPO_ACTIVE_MODE         0x2f /* exposure time signal: 0 => specified line, 1 => common exposure time */
+#define TSCAM_IOCONTROLTYPE_SET_EXPO_ACTIVE_MODE         0x30
+#define TSCAM_IOCONTROLTYPE_GET_EXPO_START_LINE          0x31 /* exposure start line, default: 0 */
+#define TSCAM_IOCONTROLTYPE_SET_EXPO_START_LINE          0x32
+#define TSCAM_IOCONTROLTYPE_GET_EXPO_END_LINE            0x33 /* exposure end line, default: 0
+                                                                   end line must be no less than start line
+                                                                */
+#define TSCAM_IOCONTROLTYPE_SET_EXPO_END_LINE            0x34
+#define TSCAM_IOCONTROLTYPE_GET_EXEVT_ACTIVE_MODE        0x35 /* exposure event: 0 => specified line, 1 => common exposure time */
+#define TSCAM_IOCONTROLTYPE_SET_EXEVT_ACTIVE_MODE        0x36
+#define TSCAM_IOCONTROLTYPE_GET_OUTPUTCOUNTERVALUE       0x37 /* Output Counter Value, range: [0 ~ 65535] */
+#define TSCAM_IOCONTROLTYPE_SET_OUTPUTCOUNTERVALUE       0x38
+#define TSCAM_IOCONTROLTYPE_SET_OUTPUT_PAUSE             0x3a /* Output pause: 1 => puase, 0 => unpause */
+#define TSCAM_IOCONTROLTYPE_GET_INPUT_STATE              0x3b /* Input state: 0 (low level) or 1 (high level) */
+#define TSCAM_IOCONTROLTYPE_GET_USER_PULSE_HIGH          0x3d /* User pulse high level time: us */
+#define TSCAM_IOCONTROLTYPE_SET_USER_PULSE_HIGH          0x3e
+#define TSCAM_IOCONTROLTYPE_GET_USER_PULSE_LOW           0x3f /* User pulse low level time: us */
+#define TSCAM_IOCONTROLTYPE_SET_USER_PULSE_LOW           0x40
+#define TSCAM_IOCONTROLTYPE_GET_USER_PULSE_NUMBER        0x41 /* User pulse number: default 0 */
+#define TSCAM_IOCONTROLTYPE_SET_USER_PULSE_NUMBER        0x42
+#define TSCAM_IOCONTROLTYPE_GET_EXTERNAL_TRIGGER_NUMBER  0x43 /* External trigger number */
+#define TSCAM_IOCONTROLTYPE_GET_DEBOUNCER_TRIGGER_NUMBER 0x45 /* Trigger signal number after debounce */
+#define TSCAM_IOCONTROLTYPE_GET_EFFECTIVE_TRIGGER_NUMBER 0x47 /* Effective trigger signal number */
 
-#define TSCAM_IOCONTROL_DELAYTIME_MAX                   (5 * 1000 * 1000)
+#define TSCAM_IOCONTROL_DELAYTIME_MAX                    (5 * 1000 * 1000)
 
 /*
   ioLineNumber:
@@ -1256,7 +1278,15 @@ typedef void (__stdcall* PTSCAM_HOTPLUG)(void* ctxHotPlug);
 TSCAM_API(HRESULT)  Tscam_GigeEnable(PTSCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
 
 /*
-USB hotplug is only available on macOS and Linux, it's unnecessary on Windows & Android. To process the device plug in / pull out:
+ filePath:
+    "*": export to EEPROM
+    "0x????" or "0X????": export to EEPROM specified address
+    file path: export to file in ini format
+*/
+TSCAM_API(HRESULT)  Tscam_export_Cfg(HTscam h, const char* filePath);
+
+/*
+This function is only available on macOS and Linux, it's unnecessary on Windows & Android. To process the device plug in / pull out:
   (1) On Windows, please refer to the MSDN
        (a) Device Management, https://docs.microsoft.com/en-us/windows/win32/devio/device-management
        (b) Detecting Media Insertion or Removal, https://docs.microsoft.com/en-us/windows/win32/devio/detecting-media-insertion-or-removal
@@ -1270,8 +1300,18 @@ Recommendation: for better rubustness, when notify of device insertion arrives, 
 TSCAM_API(void)   Tscam_HotPlug(PTSCAM_HOTPLUG funHotPlug, void* ctxHotPlug);
 #endif
 
-typedef struct
-{
+TSCAM_API(unsigned) Tscam_EnumWithName(TscamDeviceV2 pti[TSCAM_MAX]);
+TSCAM_API(HRESULT)  Tscam_set_Name(HTscam h, const char* name);
+TSCAM_API(HRESULT)  Tscam_query_Name(HTscam h, char name[64]);
+#if defined(_WIN32)
+TSCAM_API(HRESULT)  Tscam_put_Name(const wchar_t* camId, const char* name);
+TSCAM_API(HRESULT)  Tscam_get_Name(const wchar_t* camId, char name[64]);
+#else
+TSCAM_API(HRESULT)  Tscam_put_Name(const char* camId, const char* name);
+TSCAM_API(HRESULT)  Tscam_get_Name(const char* camId, char name[64]);
+#endif
+
+typedef struct {
     unsigned short lensID;
     unsigned char  lensType;
     unsigned char  statusAfmf;      /* LENS_AF = 0x00,  LENS_MF = 0x80 */
@@ -1295,6 +1335,7 @@ typedef struct
 
     unsigned       sizeFN;
     const char**   arrayFN;
+    const char*    lensName;        /* lens Name */
 } TscamLensInfo;
 
 TSCAM_API(HRESULT)  Tscam_get_LensInfo(HTscam h, TscamLensInfo* pInfo);
@@ -1312,6 +1353,7 @@ typedef enum
 
 typedef enum
 {
+    TscamAFStatus_NA           = 0x0,/* Not available */
     TscamAFStatus_PEAKPOINT    = 0x1,/* Focus completed, find the focus position */
     TscamAFStatus_DEFOCUS      = 0x2,/* End of focus, defocus */
     TscamAFStatus_NEAR         = 0x3,/* Focusing ended, object too close */
@@ -1327,14 +1369,14 @@ typedef struct {
     TscamAFMode    AF_Mode;
     TscamAFStatus  AF_Status;
     unsigned char    AF_LensAP_Update_Flag;  /* mark for whether the lens aperture is calibrated */
-    unsigned char    AF_LensManual_Flag;     /* if true, allows manual operation */
-    unsigned char    Reserved[2];
+    unsigned char    Reserved[3];
 } TscamAFState;
 
 TSCAM_API(HRESULT)  Tscam_get_AFState(HTscam h, TscamAFState* pState);
 
-TSCAM_API(HRESULT)  Tscam_put_AFMode(HTscam h, TscamAFMode mode);
+TSCAM_API(HRESULT)  Tscam_put_AFMode(HTscam h, TscamAFMode mode, int bFixedWD, unsigned uiNear, unsigned uiFar);
 TSCAM_API(HRESULT)  Tscam_put_AFRoi(HTscam h, unsigned xOffset, unsigned yOffset, unsigned xWidth, unsigned yHeight);
+TSCAM_API(HRESULT)  Tscam_get_AFRoi(HTscam h, unsigned* pxOffset, unsigned* pyOffset, unsigned* pxWidth, unsigned* pyHeight);
 TSCAM_API(HRESULT)  Tscam_put_AFAperture(HTscam h, int iAperture);
 TSCAM_API(HRESULT)  Tscam_put_AFFMPos(HTscam h, int iFMPos);
 
@@ -1381,7 +1423,6 @@ TSCAM_API(HRESULT)  Tscam_get_FrameRate(HTscam h, unsigned* nFrame, unsigned* nT
 #define TSCAM_AAF_SETPOSITION     0x01
 #define TSCAM_AAF_GETPOSITION     0x02
 #define TSCAM_AAF_SETZERO         0x03
-#define TSCAM_AAF_GETZERO         0x04
 #define TSCAM_AAF_SETDIRECTION    0x05
 #define TSCAM_AAF_GETDIRECTION    0x06
 #define TSCAM_AAF_SETMAXINCREMENT 0x07
@@ -1596,28 +1637,13 @@ TSCAM_API(HRESULT)  Tscam_get_VignetMidPointInt(HTscam h, int* nMidPoint);
 #define TSCAM_FLAG_BITDEPTH14    TSCAM_FLAG_RAW14  /* pixel format, RAW 14bits */
 #define TSCAM_FLAG_BITDEPTH16    TSCAM_FLAG_RAW16  /* pixel format, RAW 16bits */
 
-#if defined(_WIN32)
-TSCAM_API(HRESULT)  Tscam_set_Name(HTscam h, const char* name);
-TSCAM_API(HRESULT)  Tscam_query_Name(HTscam h, char name[64]);
-TSCAM_API(HRESULT)  Tscam_put_Name(const wchar_t* camId, const char* name);
-TSCAM_API(HRESULT)  Tscam_get_Name(const wchar_t* camId, char name[64]);
-#else
-TSCAM_API(HRESULT)  Tscam_set_Name(HTscam h, const char* name);
-TSCAM_API(HRESULT)  Tscam_query_Name(HTscam h, char name[64]);
-TSCAM_API(HRESULT)  Tscam_put_Name(const char* camId, const char* name);
-TSCAM_API(HRESULT)  Tscam_get_Name(const char* camId, char name[64]);
-#endif
-TSCAM_API(unsigned) Tscam_EnumWithName(TscamDeviceV2 pti[TSCAM_MAX]);
-
-TSCAM_API(HRESULT)  Tscam_put_RoiN(HTscam h, unsigned xOffset[], unsigned yOffset[], unsigned xWidth[], unsigned yHeight[], unsigned Num);
-
 TSCAM_API(HRESULT)  Tscam_log_File(const
 #if defined(_WIN32)
                                        wchar_t*
 #else
                                        char*
 #endif
-                                       filepath);
+                                       filePath);
 TSCAM_API(HRESULT)  Tscam_log_Level(unsigned level); /* 0 => none; 1 => error; 2 => debug; 3 => verbose */
 
 #if defined(_WIN32)

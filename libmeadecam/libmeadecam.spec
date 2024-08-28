@@ -1,6 +1,6 @@
 %define __cmake_in_source_build %{_vpath_builddir}
 Name: libmeadecam
-Version:2.0.6.git
+Version:2.0.7.git
 Release: %(date -u +%%Y%%m%%d%%H%%M%%S)%{?dist}
 Summary: Instrument Neutral Distributed Interface 3rd party drivers
 
@@ -80,5 +80,5 @@ make DESTDIR=%{buildroot} install
 
 
 %changelog
-* initial release 2022-05-27
+* Touptek, xiangqianyong@hotmail.com
 
