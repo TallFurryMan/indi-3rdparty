@@ -259,9 +259,12 @@ bool GPhotoCCD::initProperties()
 
     FI::initProperties(FOCUS_TAB);
 
-    PortTP[0].fill("PORT", "Port", "");
+    PortTP[0].fill("PORT", "Port", port);
     PortTP.fill(getDeviceName(), "DEVICE_PORT", "Shutter Release", MAIN_CONTROL_TAB, IP_RW, 0, IPS_IDLE);
     PortTP.load();
+    // In case port is empty, always revert back to the detected port
+    if (PortTP[0].isEmpty())
+        PortTP[0].setText(port);
 
     MirrorLockNP[0].fill("MIRROR_LOCK_SECONDS", "Seconds", "%1.0f", 0, 10, 1, 0);
     MirrorLockNP.fill(getDeviceName(), "MIRROR_LOCK", "Mirror Lock", MAIN_CONTROL_TAB, IP_RW, 60, IPS_IDLE);
