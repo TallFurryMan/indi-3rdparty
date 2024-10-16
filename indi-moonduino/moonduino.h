@@ -29,17 +29,18 @@
 
 class Moonduino;
 
-class MoonDuino :
+class MoonDuino:
     public INDI::Focuser,
-    public INDI::WeatherInterface,
-    public INDI::DustCapInterface
+    public INDI::WeatherInterface
 {
     public:
-        class DustCap: public INDI::DefaultDevice,  INDI::DustCapInterface
+        class DustCap:
+            public INDI::DefaultDevice,
+            public INDI::DustCapInterface
         {
             public:
-                DustCap(MoonDuino* parent): m_Parent(parent) {};
-                virtual ~DustCap() override = default;
+               DustCap(MoonDuino* parent);
+               virtual ~DustCap() override = default;
 
             public:
                 const char * getDefaultName() override;
@@ -50,15 +51,14 @@ class MoonDuino :
             protected:
                 virtual IPState ParkCap();
                 virtual IPState UnParkCap();
+                virtual IPState AbortCap();
                 virtual void TimerHit() override;
                 void readState();
 
             private:
-                ITextVectorProperty StatusTP;
-                IText StatusT[3] {};
+                INDI::PropertyText StatusT{3};
 
-                ISwitch AbortS[1];
-                ISwitchVectorProperty AbortSP;
+                INDI::PropertySwitch AbortS{1};
 
                 MoonDuino* m_Parent { nullptr };
                 friend class MoonDuino;
@@ -163,24 +163,19 @@ class MoonDuino :
         uint32_t targetPos { 0 }, lastPos { 0 }, lastTemperature { 0 }, lastHumidity { 0 };
 
         // Read Only Temperature Reporting
-        INumber TemperatureN[1];
-        INumberVectorProperty TemperatureNP;
+        INDI::PropertyNumber TemperatureN{1};
 
         // Read Only Humidity Reporting
-        INumber HumidityN[1];
-        INumberVectorProperty HumidityNP;
+        INDI::PropertyNumber HumidityN{1};
 
         // Full/Half Step modes
-        ISwitch StepModeS[2];
-        ISwitchVectorProperty StepModeSP;
+        INDI::PropertySwitch StepModeS{2};
 
         // Temperature Settings
-        INumber TemperatureSettingN[2];
-        INumberVectorProperty TemperatureSettingNP;
+        INDI::PropertyNumber TemperatureSettingN{2};
 
         // Temperature Compensation Enable/Disable
-        ISwitch TemperatureCompensateS[2];
-        ISwitchVectorProperty TemperatureCompensateSP;
+        INDI::PropertySwitch TemperatureCompensateS{2};
 
         // MoonDuino Buffer
         static const uint8_t ML_RES { 32 };

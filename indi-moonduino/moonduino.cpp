@@ -58,32 +58,32 @@ bool MoonDuino::initProperties()
     FocusSpeedN[0].value = 1;
 
     // Step Mode
-    IUFillSwitch(&StepModeS[FOCUS_HALF_STEP], "FOCUS_HALF_STEP", "Half Step", ISS_OFF);
-    IUFillSwitch(&StepModeS[FOCUS_FULL_STEP], "FOCUS_FULL_STEP", "Full Step", ISS_ON);
-    IUFillSwitchVector(&StepModeSP, StepModeS, 2, getDeviceName(), "Step Mode", "", OPTIONS_TAB, IP_RW, ISR_1OFMANY, 0,
-                       IPS_IDLE);
+    StepModeS[FOCUS_HALF_STEP].fill("FOCUS_HALF_STEP", "Half Step", ISS_OFF);
+    StepModeS[FOCUS_FULL_STEP].fill("FOCUS_FULL_STEP", "Full Step", ISS_ON);
+    StepModeS.fill(getDeviceName(), "Step Mode", "",
+                   OPTIONS_TAB, IP_RW, ISR_1OFMANY, 0, IPS_IDLE);
 
     // Focuser temperature
-    IUFillNumber(&TemperatureN[0], "TEMPERATURE", "Celsius", "%6.2f", -50, 70., 0., 0.);
-    IUFillNumberVector(&TemperatureNP, TemperatureN, 1, getDeviceName(), "FOCUS_TEMPERATURE", "Temperature",
-                       MAIN_CONTROL_TAB, IP_RO, 0, IPS_IDLE);
+    TemperatureN[0].fill("TEMPERATURE", "Celsius", "%6.2f", -50, 70., 0., 0.);
+    TemperatureN.fill(getDeviceName(), "FOCUS_TEMPERATURE", "Temperature",
+                      MAIN_CONTROL_TAB, IP_RO, 0, IPS_IDLE);
 
     // Focuser humidity
-    IUFillNumber(&HumidityN[0], "HUMIDITY", "Percent", "%6.2f", 0., 100., 0., 0.);
-    IUFillNumberVector(&HumidityNP, HumidityN, 1, getDeviceName(), "FOCUS_HUMIDITY", "Humidity",
-                       MAIN_CONTROL_TAB, IP_RO, 0, IPS_IDLE);
+    HumidityN[0].fill("HUMIDITY", "Percent", "%6.2f", 0., 100., 0., 0.);
+    HumidityN.fill(getDeviceName(), "FOCUS_HUMIDITY", "Humidity",
+                   MAIN_CONTROL_TAB, IP_RO, 0, IPS_IDLE);
 
     // Temperature Settings
-    IUFillNumber(&TemperatureSettingN[0], "Calibration", "", "%6.2f", -100, 100, 0.5, 0);
-    IUFillNumber(&TemperatureSettingN[1], "Coefficient", "", "%6.2f", -100, 100, 0.5, 0);
-    IUFillNumberVector(&TemperatureSettingNP, TemperatureSettingN, 2, getDeviceName(), "T. Settings", "",
-                       OPTIONS_TAB, IP_RW, 0, IPS_IDLE);
+    TemperatureSettingN[0].fill("Calibration", "", "%6.2f", -100, 100, 0.5, 0);
+    TemperatureSettingN[1].fill("Coefficient", "", "%6.2f", -100, 100, 0.5, 0);
+    TemperatureSettingN.fill(getDeviceName(), "T. Settings", "",
+                             OPTIONS_TAB, IP_RW, 0, IPS_IDLE);
 
     // Compensate for temperature
-    IUFillSwitch(&TemperatureCompensateS[0], "Enable", "", ISS_OFF);
-    IUFillSwitch(&TemperatureCompensateS[1], "Disable", "", ISS_ON);
-    IUFillSwitchVector(&TemperatureCompensateSP, TemperatureCompensateS, 2, getDeviceName(), "T. Compensate",
-                       "", MAIN_CONTROL_TAB, IP_RW, ISR_1OFMANY, 0, IPS_IDLE);
+    TemperatureCompensateS[0].fill("Enable", "", ISS_OFF);
+    TemperatureCompensateS[1].fill("Disable", "", ISS_ON);
+    TemperatureCompensateS.fill(getDeviceName(), "T. Compensate", "",
+                                MAIN_CONTROL_TAB, IP_RW, ISR_1OFMANY, 0, IPS_IDLE);
 
     /* Relative and absolute movement */
     FocusRelPosN[0].min   = 0.;
@@ -122,12 +122,11 @@ bool MoonDuino::updateProperties()
 
     if (isConnected())
     {
-        defineProperty(&TemperatureNP);
-        defineProperty(&HumidityNP);
-        defineProperty(&StepModeSP);
-        defineProperty(&TemperatureSettingNP);
-        defineProperty(&TemperatureCompensateSP);
-        defineProperty(&ParkCapSP);
+        defineProperty(TemperatureN);
+        defineProperty(HumidityN);
+        defineProperty(StepModeS);
+        defineProperty(TemperatureSettingN);
+        defineProperty(TemperatureCompensateS);
 
         GetFocusParams();
 
@@ -138,12 +137,11 @@ bool MoonDuino::updateProperties()
     }
     else
     {
-        deleteProperty(TemperatureNP.name);
-        deleteProperty(HumidityNP.name);
-        deleteProperty(StepModeSP.name);
-        deleteProperty(TemperatureSettingNP.name);
-        deleteProperty(TemperatureCompensateSP.name);
-        deleteProperty(ParkCapSP.name);
+        deleteProperty(TemperatureN);
+        deleteProperty(HumidityN);
+        deleteProperty(StepModeS);
+        deleteProperty(TemperatureSettingN);
+        deleteProperty(TemperatureCompensateS);
 
         m_DustCap.setConnected(false);
         m_DustCap.updateProperties();
@@ -196,9 +194,9 @@ bool MoonDuino::readStepMode()
         return false;
 
     if (strcmp(res, "FF#") == 0)
-        StepModeS[FOCUS_HALF_STEP].s = ISS_ON;
+        StepModeS[FOCUS_HALF_STEP].setState(ISS_ON);
     else if (strcmp(res, "00#") == 0)
-        StepModeS[FOCUS_FULL_STEP].s = ISS_ON;
+        StepModeS[FOCUS_FULL_STEP].setState(ISS_ON);
     else
     {
         LOGF_ERROR("Unknown error: focuser step value (%s)", res);
@@ -238,7 +236,7 @@ bool MoonDuino::readTemperature()
     int rc = sscanf(res, "%X", &temp);
     if (rc > 0)
         // Signed hex
-        TemperatureN[0].value = static_cast<int16_t>(temp) / 2.0;
+        TemperatureN[0].setValue(static_cast<int16_t>(temp) / 2.0);
     else
     {
         LOGF_ERROR("Unknown error: focuser temperature value (%s)", res);
@@ -261,7 +259,7 @@ bool MoonDuino::readHumidity()
     int rc = sscanf(res, "%X", &value);
     if (rc > 0)
         // Unsigned hex
-        HumidityN[0].value = static_cast<uint16_t>(value) / 2.0;
+        HumidityN[0].setValue(static_cast<uint16_t>(value) / 2.0);
     else
     {
         LOGF_ERROR("Unknown error: focuser humidity value (%s)", res);
@@ -401,62 +399,63 @@ bool MoonDuino::ISNewSwitch(const char * dev, const char * name, ISState * state
     if (dev != nullptr && strcmp(dev, getDeviceName()) == 0)
     {
         // Focus Step Mode
-        if (strcmp(StepModeSP.name, name) == 0)
+        if (StepModeS.isNameMatch(name))
         {
-            int current_mode = IUFindOnSwitchIndex(&StepModeSP);
+            int const current_mode = StepModeS.findOnSwitchIndex();
 
-            IUUpdateSwitch(&StepModeSP, states, names, n);
+            StepModeS.update(states, names, n);
 
-            int target_mode = IUFindOnSwitchIndex(&StepModeSP);
+            int const target_mode = StepModeS.findOnSwitchIndex();
 
             if (current_mode == target_mode)
             {
-                StepModeSP.s = IPS_OK;
-                IDSetSwitch(&StepModeSP, nullptr);
+                StepModeS.setState(IPS_OK);
+                StepModeS.apply();
+                return true;
             }
 
             bool rc = setStepMode(target_mode == 0 ? FOCUS_HALF_STEP : FOCUS_FULL_STEP);
             if (!rc)
             {
-                IUResetSwitch(&StepModeSP);
-                StepModeS[current_mode].s = ISS_ON;
-                StepModeSP.s              = IPS_ALERT;
-                IDSetSwitch(&StepModeSP, nullptr);
+                StepModeS.reset();
+                StepModeS[current_mode].setState(ISS_ON);
+                StepModeS.setState(IPS_ALERT);
+                StepModeS.apply();
                 return false;
             }
 
-            StepModeSP.s = IPS_OK;
-            IDSetSwitch(&StepModeSP, nullptr);
+            StepModeS.setState(IPS_OK);
+            StepModeS.apply();
             return true;
         }
 
         // Temperature Compensation Mode
-        if (strcmp(TemperatureCompensateSP.name, name) == 0)
+        if (TemperatureCompensateS.isNameMatch(name))
         {
-            int last_index = IUFindOnSwitchIndex(&TemperatureCompensateSP);
-            IUUpdateSwitch(&TemperatureCompensateSP, states, names, n);
+            int const last_index = TemperatureCompensateS.findOnSwitchIndex();
+            TemperatureCompensateS.update(states, names, n);
 
-            bool rc = setTemperatureCompensation((TemperatureCompensateS[0].s == ISS_ON));
+            bool rc = setTemperatureCompensation(ISS_ON == TemperatureCompensateS[0].getState());
 
             if (!rc)
             {
-                TemperatureCompensateSP.s = IPS_ALERT;
-                IUResetSwitch(&TemperatureCompensateSP);
-                TemperatureCompensateS[last_index].s = ISS_ON;
-                IDSetSwitch(&TemperatureCompensateSP, nullptr);
+                TemperatureCompensateS.reset();
+                TemperatureCompensateS[last_index].setState(ISS_ON);
+                TemperatureCompensateS.setState(IPS_ALERT);
+                TemperatureCompensateS.apply();
                 return false;
             }
 
-            TemperatureCompensateSP.s = IPS_OK;
-            IDSetSwitch(&TemperatureCompensateSP, nullptr);
+            TemperatureCompensateS.setState(IPS_OK);
+            TemperatureCompensateS.apply();
             return true;
         }
 
-        if (processDustCapSwitch(dev, name, states, names, n))
+        if (INDI::WeatherInterface::processSwitch(dev, name, states, names, n))
             return true;
     }
 
-    return INDI::Focuser::ISNewSwitch(dev, name, states, names, n);
+    return INDI::Focuser::processSwitch(dev, name, states, names, n);
 }
 
 bool MoonDuino::ISNewNumber(const char * dev, const char * name, double values[], char * names[], int n)
@@ -464,19 +463,19 @@ bool MoonDuino::ISNewNumber(const char * dev, const char * name, double values[]
     if (dev != nullptr && strcmp(dev, getDeviceName()) == 0)
     {
         // Temperature Settings
-        if (strcmp(name, TemperatureSettingNP.name) == 0)
+        if (TemperatureSettingN.isNameMatch(name))
         {
-            IUUpdateNumber(&TemperatureSettingNP, values, names, n);
-            if (!setTemperatureCalibration(TemperatureSettingN[0].value) ||
-                    !setTemperatureCoefficient(TemperatureSettingN[1].value))
+            TemperatureSettingN.update(values, names, n);
+            if (!setTemperatureCalibration(TemperatureSettingN[0].getValue()) ||
+                !setTemperatureCoefficient(TemperatureSettingN[1].getValue()))
             {
-                TemperatureSettingNP.s = IPS_ALERT;
-                IDSetNumber(&TemperatureSettingNP, nullptr);
+                TemperatureSettingN.setState(IPS_ALERT);
+                TemperatureSettingN.apply();
                 return false;
             }
 
-            TemperatureSettingNP.s = IPS_OK;
-            IDSetNumber(&TemperatureSettingNP, nullptr);
+            TemperatureSettingN.setState(IPS_OK);
+            TemperatureSettingN.apply();
             return true;
         }
         
@@ -484,25 +483,25 @@ bool MoonDuino::ISNewNumber(const char * dev, const char * name, double values[]
             return true;
     }
 
-    return INDI::Focuser::ISNewNumber(dev, name, values, names, n);
+    return INDI::Focuser::processNumber(dev, name, values, names, n);
 }
 
 void MoonDuino::GetFocusParams()
 {
     if (readPosition())
         IDSetNumber(&FocusAbsPosNP, nullptr);
-
-    if (readTemperature())
-        IDSetNumber(&TemperatureNP, nullptr);
-
-    if (readHumidity())
-        IDSetNumber(&HumidityNP, nullptr);
-
+    
     if (readSpeed())
         IDSetNumber(&FocusSpeedNP, nullptr);
 
+    if (readTemperature())
+        TemperatureN.apply();
+
+    if (readHumidity())
+        HumidityN.apply();
+
     if (readStepMode())
-        IDSetSwitch(&StepModeSP, nullptr);
+        StepModeS.apply();
 }
 
 bool MoonDuino::SetFocuserSpeed(int speed)
@@ -591,20 +590,24 @@ void MoonDuino::TimerHit()
     rc = readTemperature();
     if (rc)
     {
-        if (fabs(lastTemperature - TemperatureN[0].value) >= 0.5)
+        float const currentTemperature = TemperatureN[0].getValue();
+
+        if (fabs(lastTemperature - currentTemperature) >= 0.5)
         {
-            IDSetNumber(&TemperatureNP, nullptr);
-            lastTemperature = static_cast<uint32_t>(TemperatureN[0].value);
+            TemperatureN.apply();
+            lastTemperature = static_cast<uint32_t>(currentTemperature);
         }
     }
 
     rc = readHumidity();
     if (rc)
     {
-        if (fabs(lastHumidity - HumidityN[0].value) >= 0.5)
+        float const currentHumidity = HumidityN[0].getValue();
+
+        if (fabs(lastHumidity - currentHumidity) >= 0.5)
         {
-            IDSetNumber(&HumidityNP, nullptr);
-            lastHumidity = static_cast<uint32_t>(HumidityN[0].value);
+            HumidityN.apply();
+            lastHumidity = static_cast<uint32_t>(currentHumidity);
         }
     }
 
@@ -633,11 +636,7 @@ bool MoonDuino::AbortFocuser()
 
 bool MoonDuino::saveConfigItems(FILE * fp)
 {
-    Focuser::saveConfigItems(fp);
-
-    IUSaveConfigSwitch(fp, &StepModeSP);
-
-    return true;
+    return Focuser::saveConfigItems(fp);
 }
 
 bool MoonDuino::sendCommand(const char * cmd, char * res, bool silent, int nret)
@@ -782,6 +781,12 @@ bool MoonDuino::sendCommand(const char * cmd, char * res, bool silent, int nret)
     else return false;
 }
 
+MoonDuino::DustCap::DustCap(MoonDuino* parent):
+    INDI::DefaultDevice(),
+    INDI::DustCapInterface(this),
+    m_Parent(parent)
+{};
+
 const char * MoonDuino::DustCap::getDefaultName()
 {
     return "MoonDuino DustCap";
@@ -792,37 +797,27 @@ bool MoonDuino::DustCap::initProperties()
     INDI::DefaultDevice::initProperties();
 
     // Status
-    IUFillText(&StatusT[0], "Cover", "", nullptr);
-    IUFillText(&StatusT[1], "Motor", "", nullptr);
-    IUFillTextVector(&StatusTP, StatusT, 2, getDeviceName(), "Status", "", MAIN_CONTROL_TAB, IP_RO, 60, IPS_IDLE);
+    StatusT[0].fill("Cover", "", nullptr);
+    StatusT[1].fill("Motor", "", nullptr);
+    StatusT.fill(getDeviceName(), "Status", "",
+                 MAIN_CONTROL_TAB, IP_RO, 60, IPS_IDLE);
 
-    // Abort and force open/close buttons
-    IUFillSwitch(&AbortS[0], "Abort", "", ISS_OFF);
-    IUFillSwitchVector(&AbortSP, AbortS, 1, getDeviceName(), "Abort Motion", "", MAIN_CONTROL_TAB, IP_RW, ISR_ATMOST1, 0,
-                       IPS_IDLE);
-
-    INDI::DustCapInterface::initDustCapProperties(getDeviceName(), MAIN_CONTROL_TAB);
+    INDI::DustCapInterface::initProperties(MAIN_CONTROL_TAB, CAN_ABORT);
     return true;
 }
 
 bool MoonDuino::DustCap::updateProperties()
 {
-    INDI::DefaultDevice::updateProperties();
+    bool result = INDI::DefaultDevice::updateProperties();
     
     if (isConnected())
-    {
-        defineProperty(&ParkCapSP);
-        defineProperty(&StatusTP);
-        defineProperty(&AbortSP);
-    }
+        defineProperty(StatusT);
     else
-    {
-        deleteProperty(ParkCapSP.name);
-        deleteProperty(StatusTP.name);
-        deleteProperty(AbortSP.name);
-    }
+        deleteProperty(StatusT);
 
-    return true;
+    result &= INDI::DustCapInterface::updateProperties();
+
+    return result;
 }
 
 IPState MoonDuino::DustCap::ParkCap()
@@ -832,8 +827,9 @@ IPState MoonDuino::DustCap::ParkCap()
     if (m_Parent == nullptr || m_Parent->sendCommand(":DC1#") == false)
         e = IPS_ALERT;
 
-    IUSaveText(&StatusT[0], e == IPS_BUSY ? "Capping" : "Serial error");
-    IDSetText(&StatusTP, nullptr);
+    StatusT[0].setText(e == IPS_BUSY ? "Capping" : "Serial error");
+    StatusT.setState(e);
+    StatusT.apply();
 
     return e;
 }
@@ -845,10 +841,16 @@ IPState MoonDuino::DustCap::UnParkCap()
     if (m_Parent == nullptr || m_Parent->sendCommand(":DC0#") == false)
         e = IPS_ALERT;
 
-    IUSaveText(&StatusT[0], e == IPS_BUSY ? "Uncapping" : "Serial error");
-    IDSetText(&StatusTP, nullptr);
+    StatusT[0].setText(e == IPS_BUSY ? "Uncapping" : "Serial error");
+    StatusT.setState(e);
+    StatusT.apply();
 
     return e;
+}
+
+IPState MoonDuino::DustCap::AbortCap()
+{
+    return m_Parent->AbortFocuser() ? IPS_OK : IPS_ALERT;
 }
 
 void MoonDuino::DustCap::readState()
@@ -860,53 +862,42 @@ void MoonDuino::DustCap::readState()
         {
             if (!strcmp(res, "0#")) // Unparked
             {
-                ParkCapSP.s = IPS_OK;
-                ParkCapS[CAP_PARK].s = ISS_OFF;
-                ParkCapS[CAP_UNPARK].s = ISS_ON;
-                IUSaveText(&StatusT[0], "Uncapped");
+                ParkCapSP[CAP_PARK].setState(ISS_OFF);
+                ParkCapSP[CAP_UNPARK].setState(ISS_ON);
+                StatusT[0].setText("Uncapped");
             }
             else if (!strcmp(res, "1#")) // Parked
             {
-                ParkCapSP.s = IPS_OK;
-                ParkCapS[CAP_PARK].s = ISS_ON;
-                ParkCapS[CAP_UNPARK].s = ISS_OFF;
-                IUSaveText(&StatusT[0], "Capped");
+                ParkCapSP[CAP_PARK].setState(ISS_ON);
+                ParkCapSP[CAP_UNPARK].setState(ISS_OFF);
+                StatusT[0].setText("Capped");
             }
-            if (IPS_BUSY == ParkCapSP.s) // Busy will change to ok now
+            if (IPS_BUSY == ParkCapSP.getState()) // Busy will change to ok now
                 LOG_INFO("DustCap reached requested position.");
-            ParkCapSP.s = IPS_OK;
-            IDSetSwitch(&ParkCapSP, nullptr);
-            IDSetText(&StatusTP, nullptr);
+            ParkCapSP.setState(IPS_OK);
+            ParkCapSP.apply();
+            StatusT.setState(IPS_OK);
+            StatusT.apply();
         }
         else
         {
-            ParkCapSP.s = IPS_BUSY;
-            IDSetSwitch(&ParkCapSP, nullptr);
+            ParkCapSP.setState(IPS_BUSY);
+            ParkCapSP.apply();
         }
     }
 }
 
 void MoonDuino::DustCap::TimerHit()
 {
-    if (ParkCapSP.s == IPS_BUSY || ParkCapSP.s == IPS_IDLE)
+    IPState const pc = ParkCapSP.getState();
+    if (IPS_BUSY == pc || IPS_IDLE == pc)
         readState();
 }
 
 bool MoonDuino::DustCap::ISNewSwitch(const char *dev, const char *name, ISState *states, char *names[], int n)
 {
-    if (dev != nullptr && strcmp(dev, getDeviceName()) == 0)
-    {
-        if (strcmp(AbortSP.name, name) == 0)
-        {
-            IUResetSwitch(&AbortSP);
-            AbortSP.s = m_Parent->AbortFocuser() ? IPS_OK : IPS_ALERT;
-            IDSetSwitch(&AbortSP, nullptr);
-            return true;
-        }
-
-        if (processDustCapSwitch(dev, name, states, names, n))
-            return true;
-    }
+    if(processSwitch(dev, name, states, names, n))
+        return true;
 
     return INDI::DefaultDevice::ISNewSwitch(dev, name, states, names, n);
 }
