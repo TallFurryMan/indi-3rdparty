@@ -452,7 +452,7 @@ bool MoonDuino::ISNewSwitch(const char * dev, const char * name, ISState * state
             return true;
         }
 
-        if (processDustCapSwitch(dev, name, states, names, n))
+        if (processSwitch(dev, name, states, names, n))
             return true;
     }
 
@@ -904,7 +904,7 @@ bool MoonDuino::DustCap::ISNewSwitch(const char *dev, const char *name, ISState 
             return true;
         }
 
-        if (processDustCapSwitch(dev, name, states, names, n))
+        if (processSwitch(dev, name, states, names, n))
             return true;
     }
 
