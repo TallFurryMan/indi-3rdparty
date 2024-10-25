@@ -380,11 +380,6 @@ if (WITH_EQMOD)
 add_subdirectory(indi-eqmod)
 endif(WITH_EQMOD)
 
-## AstroLink4
-if (WITH_ASTROLINK4)
-add_subdirectory(indi-astrolink4)
-endif(WITH_ASTROLINK4)
-
 ## SkyWalker
 if (WITH_SKYWALKER)
 add_subdirectory(indi-aok)
@@ -424,11 +419,6 @@ endif(WITH_TALON6)
 if (WITH_ROLLOFFINO)
 add_subdirectory(indi-rolloffino)
 endif(WITH_ROLLOFFINO)
-
-## SpectraCyber
-if (WITH_SPECTRACYBER)
-add_subdirectory(indi-spectracyber)
-endif(WITH_SPECTRACYBER)
 
 ## Shelyak
 if (WITH_SHELYAK)
@@ -660,11 +650,6 @@ if (WITH_MGEN)
 add_subdirectory(indi-mgen)
 endif (WITH_MGEN)
 
-# Astromechanics Focuser
-if (WITH_ASTROMECHFOC)
-add_subdirectory(indi-astromechfoc)
-endif(WITH_ASTROMECHFOC)
-
 ## LIME-SDR
 if (WITH_LIMESDR)
 find_package(LIMESUITE)
@@ -690,10 +675,6 @@ endif()
 if (WITH_NIGHTSCAPE)
 add_subdirectory(indi-nightscape)
 endif(WITH_NIGHTSCAPE)
-
-if (WITH_DREAMFOCUSER)
-add_subdirectory(indi-dreamfocuser)
-endif()
 
 # Avalon StarGO
 if (WITH_AVALON)
