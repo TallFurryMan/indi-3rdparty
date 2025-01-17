@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.16)
 PROJECT(indi_gphoto C CXX)
 
 set(INDI_GPHOTO_VERSION_MAJOR 3)
-set(INDI_GPHOTO_VERSION_MINOR 3)
+set(INDI_GPHOTO_VERSION_MINOR 4)
 
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake_modules/")
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake_modules/")
@@ -113,6 +113,25 @@ exec_program(\"${CMAKE_COMMAND}\" ARGS -E create_symlink indi_gphoto_ccd \$ENV{D
 set_target_properties(indi_gphoto_ccd PROPERTIES POST_INSTALL_SCRIPT ${CMAKE_CURRENT_BINARY_DIR}/make_gphoto_symlink.cmake)
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/indi_gphoto.xml DESTINATION ${INDI_DATA_DIR})
+
+# Build the camera test application
+add_executable(gphoto_camera_test
+    ${CMAKE_CURRENT_SOURCE_DIR}/gphoto_camera_test.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gphoto_driver.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/dsusbdriver.cpp
+)
+
+target_link_libraries(gphoto_camera_test
+    ${GPHOTO2_LIBRARY}
+    ${GPHOTO2_PORT_LIBRARY}
+    ${CMAKE_THREAD_LIBS_INIT}
+    ${INDI_LIBRARIES}
+    ${JPEG_LIBRARIES}
+    ${LibRaw_LIBRARIES}
+    ${ZLIB_LIBRARIES}
+)
+
+install(TARGETS gphoto_camera_test DESTINATION bin)
 
 # Disable automount for DSLR cameras
 IF (UNIX AND NOT APPLE)
