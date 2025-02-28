@@ -150,7 +150,7 @@ bool MoonDuino::updateProperties()
     return true;
 }
 
-IPState Moonduino::updateWeather() {
+IPState MoonDuino::updateWeather() {
     return IPS_ALERT;
 }
 
