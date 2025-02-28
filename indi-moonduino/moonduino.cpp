@@ -150,6 +150,10 @@ bool MoonDuino::updateProperties()
     return true;
 }
 
+IPState Moonduino::updateWeather() {
+    return IPS_ALERT;
+}
+
 bool MoonDuino::Handshake()
 {
     if (Ack())
