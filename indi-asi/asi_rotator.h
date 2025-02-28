@@ -51,7 +51,7 @@ class ASICAA : public INDI::Rotator
 
         // Misc.
         virtual const char *getDefaultName() override;
-        void TimerHit();
+        virtual void TimerHit() override;
 
     private:
         int m_ID { -1 };
@@ -74,10 +74,6 @@ class ASICAA : public INDI::Rotator
         };
         INDI::PropertyText VersionInfoTP {VERSION_COUNT};
 
-        // Max Degree Limit
-        INDI::PropertyNumber MaxDegreeLimitNP {1};
-
         // Timer
-        int timerID { -1 };
         static constexpr double THRESHOLD { 0.1 };
 };
