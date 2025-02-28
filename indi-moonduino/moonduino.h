@@ -80,6 +80,12 @@ class MoonDuino:
 
     protected:
         /**
+         * @brief updateWeather Update weather conditions from device or service.
+         * @return Return overall state.
+         */
+        virtual IPState Moonduino::updateWeather() override;
+
+        /**
          * @brief Handshake Try to communicate with Focuser and see if there is a valid response.
          * @return True if communication is successful, false otherwise.
          */
