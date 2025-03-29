@@ -25,6 +25,7 @@
 #include <unistd.h>
 #include <sys/ioctl.h>
 #include <cstdlib>
+#include <thread>
 
 #include <config.h>
 #include <indilogger.h>
@@ -147,6 +148,7 @@ struct _gphoto_driver
     int bulb_exposure_index;
     double max_exposure, min_exposure;
     bool force_bulb;
+    int download_timeout;
 
     int iso;
     int format;
@@ -625,7 +627,23 @@ static void *stop_bulb(void *arg)
                     DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Closing DSUSB shutter.");
                     gphoto->dsusb->closeShutter();
                 }
-                if (gphoto->bulb_widget)
+
+                if (gphoto->bulb_port[0] && (gphoto->bulb_fd >= 0))
+                {
+                    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Closing remote serial shutter (%s)", gphoto->bulb_port);
+
+                    // Close Nikon Shutter
+                    if (strstr(device, "Nikon"))
+                    {
+                        uint8_t close_shutter[3] = {0xFF, 0x01, 0x00};
+                        if (write(gphoto->bulb_fd, close_shutter, 3) != 3)
+                            DEBUGDEVICE(device, INDI::Logger::DBG_WARNING, "Closing Nikon remote serial shutter failed.");
+                    }
+
+                    ioctl(gphoto->bulb_fd, TIOCMBIC, &RTS_flag);
+                    close(gphoto->bulb_fd);
+                }
+                else if (gphoto->bulb_widget)
                 {
                     DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Closing internal shutter.");
                     DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Using widget:%s", gphoto->bulb_widget->name);
@@ -638,21 +656,6 @@ static void *stop_bulb(void *arg)
                     {
                         gphoto_set_widget_num(gphoto, gphoto->bulb_widget, FALSE);
                     }
-                }
-                if (gphoto->bulb_port[0] && (gphoto->bulb_fd >= 0))
-                {
-                    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Closing remote serial shutter.");
-
-                    // Close Nikon Shutter
-                    if (!strstr(device, "Nikon"))
-                    {
-                        uint8_t close_shutter[3] = {0xFF, 0x01, 0x00};
-                        if (write(gphoto->bulb_fd, close_shutter, 3) != 3)
-                            DEBUGDEVICE(device, INDI::Logger::DBG_WARNING, "Closing Nikon remote serial shutter failed.");
-                    }
-
-                    ioctl(gphoto->bulb_fd, TIOCMBIC, &RTS_flag);
-                    close(gphoto->bulb_fd);
                 }
                 gphoto->command |= DSLR_CMD_DONE;
                 pthread_cond_signal(&gphoto->signal);
@@ -1219,7 +1222,7 @@ int gphoto_start_exposure(gphoto_driver *gphoto, uint32_t exptime_usec, int mirr
             }
 
             // Open Nikon Shutter
-            if (!strstr(device, "Nikon"))
+            if (strstr(device, "Nikon"))
             {
                 uint8_t open_shutter[3] = {0xFF, 0x01, 0x01};
                 if (write(gphoto->bulb_fd, open_shutter, 3) != 3)
@@ -1344,8 +1347,8 @@ int gphoto_start_exposure(gphoto_driver *gphoto, uint32_t exptime_usec, int mirr
 
 int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
 {
-    CameraFilePath *fn;
-    CameraEventType event;
+    CameraFilePath *fn = nullptr;
+    CameraEventType event = GP_EVENT_UNKNOWN;
     void *data = nullptr;
     int result;
 
@@ -1368,10 +1371,11 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
         {
             gphoto->command = 0;
             pthread_mutex_unlock(&gphoto->mutex);
+            DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Image is ignored per settings.");
             return GP_OK;
         }
 
-        result          = download_image(gphoto, &gphoto->camerapath, fd);
+        result = download_image(gphoto, &gphoto->camerapath, fd);
         gphoto->command = 0;
         //Set exposure back to original value
         // JM 2018-08-06: Why do we really need to reset values here?
@@ -1381,10 +1385,14 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
     }
 
     //Bulb mode
-    int timeoutCounter = 0;
-    gphoto->command    = 0;
-    uint32_t waitMS = 1000;
+    gphoto->command = 0;
+    uint32_t waitMS = std::max(gphoto->download_timeout, 1) * 1000;
     bool downloadComplete = false;
+    struct timeval start_time;
+    gettimeofday(&start_time, nullptr);
+    DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "BULB Mode: Waiting for event for %d seconds (waitMS: %d).",
+                 gphoto->download_timeout, waitMS);
+    int no_event_retries = 3;
 
     while (1)
     {
@@ -1394,14 +1402,14 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
         if (result != GP_OK)
         {
             DEBUGDEVICE(device, INDI::Logger::DBG_WARNING, "Could not wait for event.");
-            timeoutCounter++;
-            if (timeoutCounter >= 10)
+            // Try up to 3 times before giving up
+            if (no_event_retries-- > 0)
             {
-                pthread_mutex_unlock(&gphoto->mutex);
-                return -1;
+                usleep(250000);
+                continue;
             }
-
-            continue;
+            pthread_mutex_unlock(&gphoto->mutex);
+            return -1;
         }
 
         switch (event)
@@ -1412,33 +1420,53 @@ int gphoto_read_exposure_fd(gphoto_driver *gphoto, int fd)
                 return GP_OK;
 
             case GP_EVENT_FILE_ADDED:
+                if (downloadComplete) break;
                 DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "File added event completed.");
-                fn     = static_cast<CameraFilePath *>(data);
+                fn = static_cast<CameraFilePath *>(data);
                 if (gphoto->handle_sdcard_image != IGNORE_IMAGE)
                     download_image(gphoto, fn, fd);
-                waitMS = 100;
+
                 downloadComplete = true;
+                // Wait 1 second for GP_EVENT_CAPTURE_COMPLETE
+                // If that times out, we already marked downloadComplete as true so we will exist gracefully.
+                waitMS = 1000;
                 break;
             case GP_EVENT_UNKNOWN:
                 //DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Unknown event.");
                 break;
             case GP_EVENT_TIMEOUT:
+            {
+                // If already downloaded, then return immediately.
                 if (downloadComplete)
                 {
                     pthread_mutex_unlock(&gphoto->mutex);
                     return GP_OK;
                 }
-                DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Event timed out #%d, retrying...", ++timeoutCounter);
-                // So retry for 5 seconds before giving up
-                if (timeoutCounter >= 10)
+
+                // Check how much time actually elapsed.
+                struct timeval current_time;
+                gettimeofday(&current_time, nullptr);
+                uint32_t elapsed = ((current_time.tv_sec - start_time.tv_sec) * 1000 +
+                                    (current_time.tv_usec - start_time.tv_usec) / 1000);
+
+                // If we haven't waited the full timeout period yet, continue waiting
+                if (elapsed < waitMS)
                 {
-                    pthread_mutex_unlock(&gphoto->mutex);
-                    return -1;
+                    DEBUGDEVICE(device, INDI::Logger::DBG_DEBUG, "Timeout was premature, continuing to wait...");
+                    usleep(100000);
+                    break;
                 }
-                break;
+
+                // Give up as we timed out.
+                DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Event timed out after %d ms (elapsed: %d ms).", waitMS, elapsed);
+                pthread_mutex_unlock(&gphoto->mutex);
+                return -1;
+            }
+            break;
 
             default:
                 DEBUGFDEVICE(device, INDI::Logger::DBG_DEBUG, "Got unexpected message: %d", event);
+                break;
         }
     }
     return GP_OK;
@@ -1697,6 +1725,7 @@ gphoto_driver *gphoto_open(Camera *camera, GPContext *context, const char *model
     gphoto->exposure_presets_count = 0;
     gphoto->max_exposure           = 3600;
     gphoto->min_exposure           = 0.001;
+    gphoto->download_timeout       = 60;
     gphoto->dsusb                  = nullptr;
     gphoto->force_bulb             = true;
     gphoto->last_sensor_temp       = -273.0; // 0 degrees Kelvin
@@ -2401,6 +2430,11 @@ int gphoto_handle_sdcard_image(gphoto_driver *gphoto, CameraImageHandling handli
 void gphoto_force_bulb(gphoto_driver *gphoto, bool enabled)
 {
     gphoto->force_bulb = enabled;
+}
+
+void gphoto_set_download_timeout(gphoto_driver *gphoto, int timeout)
+{
+    gphoto->download_timeout = timeout;
 }
 
 #ifdef GPHOTO_TEST

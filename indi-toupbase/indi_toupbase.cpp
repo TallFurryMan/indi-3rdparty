@@ -1,7 +1,7 @@
 /*
  Toupcam & oem CCD Driver
 
- Copyright (C) 2018-2019 Jasem Mutlaq (mutlaqja@ikarustech.com)
+ Copyright (C) 2018-2025 Jasem Mutlaq (mutlaqja@ikarustech.com)
 
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Lesser General Public
@@ -22,6 +22,7 @@
 #include "indi_toupbase.h"
 #include "config.h"
 #include <stream/streammanager.h>
+#include <unordered_map>
 #include <unistd.h>
 #include <deque>
 
@@ -44,28 +45,63 @@ static class Loader
         Loader()
         {
             const int iConnectedCount = FP(EnumV2(pCameraInfo));
+
+            // In case we have identical cameras we need to fix that.
+            // e.g. if we have Camera, Camera, it will become
+            // Camera, Camera #2
+            std::vector<std::string> names;
             for (int i = 0; i < iConnectedCount; i++)
             {
-                if (0 == (CP(FLAG_FILTERWHEEL) & pCameraInfo[i].model->flag))
-                    cameras.push_back(std::unique_ptr<ToupBase>(new ToupBase(&pCameraInfo[i])));
+                names.push_back(pCameraInfo[i].model->name);
+            }
+            if (iConnectedCount > 0)
+                fixDuplicates(names);
+
+            for (int i = 0; i < iConnectedCount; i++)
+            {
+                if ((CP(FLAG_CCD_INTERLACED) | CP(FLAG_CCD_PROGRESSIVE) | CP(FLAG_CMOS)) & pCameraInfo[i].model->flag)
+                    cameras.push_back(std::unique_ptr<ToupBase>(new ToupBase(&pCameraInfo[i], names[i])));
             }
             if (cameras.empty())
                 IDLog("No camera detected");
         }
+
+        // If duplicate cameras are found, append a number to the camera to set it apart.
+        void fixDuplicates(std::vector<std::string> &strings)
+        {
+            std::unordered_map<std::string, int> stringCounts;
+
+            for (std::string &str : strings)
+            {
+                if (stringCounts.count(str) > 0)
+                {
+                    int count = stringCounts[str]++;
+                    str += " #" + std::to_string(count + 1);
+                    stringCounts[str]++;
+                }
+                else
+                {
+                    stringCounts[str] = 1;
+                }
+            }
+        }
 } loader;
 
-ToupBase::ToupBase(const XP(DeviceV2) *instance) : m_Instance(instance)
+ToupBase::ToupBase(const XP(DeviceV2) *instance, const std::string &name) : m_Instance(instance)
 {
-    IDLog("model: %s, maxspeed: %d, preview: %d, maxfanspeed: %d", m_Instance->model->name, m_Instance->model->maxspeed,
+    IDLog("model: %s, name: %s, maxspeed: %d, preview: %d, maxfanspeed: %d", m_Instance->model->name, name.c_str(),
+          m_Instance->model->maxspeed,
           m_Instance->model->preview, m_Instance->model->maxfanspeed);
 
     setVersion(TOUPBASE_VERSION_MAJOR, TOUPBASE_VERSION_MINOR);
 
-    snprintf(this->m_name, MAXINDIDEVICE, "%s %s", getDefaultName(), m_Instance->model->name);
-    setDeviceName(this->m_name);
+    setDeviceName((std::string(DNAME) + " " + name).c_str());
 
     if (m_Instance->model->flag & CP(FLAG_MONO))
         m_MonoCamera = true;
+
+    mTimerWE.setSingleShot(true);
+    mTimerNS.setSingleShot(true);
 }
 
 ToupBase::~ToupBase()
@@ -247,7 +283,7 @@ bool ToupBase::initProperties()
     IUFillSwitch(&m_TailLightS[INDI_ENABLED], "INDI_ENABLED", "ON", ISS_OFF);
     IUFillSwitch(&m_TailLightS[INDI_DISABLED], "INDI_DISABLED", "OFF", ISS_ON);
     IUFillSwitchVector(&m_TailLightSP, m_TailLightS, 2, getDeviceName(), "TC_TAILLIGHT", "Tail Light", CONTROL_TAB, IP_RW,
-                                   ISR_1OFMANY, 60, IPS_IDLE);
+                       ISR_1OFMANY, 60, IPS_IDLE);
 
     ///////////////////////////////////////////////////////////////////////////////////
     /// High Fullwell
@@ -302,6 +338,9 @@ bool ToupBase::initProperties()
     IUFillText(&m_SDKVersionT, "VERSION", "Version", FP(Version()));
     IUFillTextVector(&m_SDKVersionTP, &m_SDKVersionT, 1, getDeviceName(), "SDK", "SDK", INFO_TAB, IP_RO, 0, IPS_IDLE);
 
+    m_ADCDepthNP[0].fill("BITS", "Bits", "%2.0f", 0, 32, 1, m_maxBitDepth);
+    m_ADCDepthNP.fill(getDeviceName(), "ADC_DEPTH", "ADC Depth", IMAGE_INFO_TAB, IP_RO, 60, IPS_IDLE);
+
     PrimaryCCD.setMinMaxStep("CCD_BINNING", "HOR_BIN", 1, 4, 1, false);
     PrimaryCCD.setMinMaxStep("CCD_BINNING", "VER_BIN", 1, 4, 1, false);
 
@@ -335,8 +374,8 @@ bool ToupBase::updateProperties()
         // Even if there is no cooler, we define temperature property as READ ONLY
         else if (m_Instance->model->flag & CP(FLAG_GETTEMPERATURE))
         {
-            TemperatureNP.p = IP_RO;
-            defineProperty(&TemperatureNP);
+            TemperatureNP.setPermission(IP_RO);
+            defineProperty(TemperatureNP);
         }
 
         if (m_Instance->model->flag & CP(FLAG_FAN))
@@ -378,6 +417,7 @@ bool ToupBase::updateProperties()
         // Firmware
         defineProperty(&m_CameraTP);
         defineProperty(&m_SDKVersionTP);
+        defineProperty(m_ADCDepthNP);
     }
     else
     {
@@ -388,7 +428,7 @@ bool ToupBase::updateProperties()
         }
         else
         {
-            deleteProperty(TemperatureNP.name);
+            deleteProperty(TemperatureNP);
         }
 
         if (m_Instance->model->flag & CP(FLAG_FAN))
@@ -427,6 +467,7 @@ bool ToupBase::updateProperties()
 
         deleteProperty(m_CameraTP.name);
         deleteProperty(m_SDKVersionTP.name);
+        deleteProperty(m_ADCDepthNP.getName());
     }
 
     return true;
@@ -463,10 +504,9 @@ bool ToupBase::Connect()
     {
         int tecRange = 0;
         FP(get_Option(m_Handle, CP(OPTION_TECTARGET_RANGE), &tecRange));
-        TemperatureN[0].min = (static_cast<short>(tecRange & 0xffff))/10.0;
-        TemperatureN[0].max
-                = (static_cast<short>((tecRange >> 16) & 0xffff)) / 10.0;
-        TemperatureN[0].value = 0; // reasonable default
+        TemperatureNP[0].setMin((static_cast<short>(tecRange & 0xffff)) / 10.0);
+        TemperatureNP[0].setMax((static_cast<short>((tecRange >> 16) & 0xffff)) / 10.0);
+        TemperatureNP[0].setValue(0); // reasonable default
     }
 
     {
@@ -487,8 +527,8 @@ bool ToupBase::Connect()
 
 bool ToupBase::Disconnect()
 {
-    stopTimerNS();
-    stopTimerWE();
+    stopGuidePulse(mTimerNS);
+    stopGuidePulse(mTimerWE);
 
     FP(Close(m_Handle));
 
@@ -531,6 +571,7 @@ void ToupBase::setupParams()
 
     FP(put_AutoExpoEnable(m_Handle, 0));
     FP(put_Option(m_Handle, CP(OPTION_NOFRAME_TIMEOUT), 1));
+    FP(put_Option(m_Handle, CP(OPTION_ZERO_PADDING), 1));
 
     // Get Firmware Info
     char tmpBuffer[64] = {0};
@@ -560,11 +601,15 @@ void ToupBase::setupParams()
         m_BitsPerPixel = 16;
     }
 
+    uint32_t nBitDepth = 0;
+    FP(get_RawFormat(m_Handle, nullptr, &nBitDepth));
+    m_ADCDepthNP[0].setValue(nBitDepth);
+
     FP(put_Option(m_Handle, CP(OPTION_RAW), 1));
 
     if (m_MonoCamera)// Check if mono camera
     {
-        CaptureFormat mono16 = {"INDI_MONO_16", (std::string("Mono ") + std::to_string(m_maxBitDepth)).c_str(), 16, false};
+        CaptureFormat mono16 = {"INDI_MONO_16", "Mono 16", 16, false};
         CaptureFormat mono8 = {"INDI_MONO_8", "Mono 8", 8, false};
         if (m_maxBitDepth > 8)
         {
@@ -588,10 +633,10 @@ void ToupBase::setupParams()
     else// Color Camera
     {
         CaptureFormat rgb = {"INDI_RGB", "RGB", 8, false };
-        CaptureFormat raw = {"INDI_RAW", (m_maxBitDepth > 8) ? (std::string("RAW ") + std::to_string(m_maxBitDepth)).c_str() : "RAW 8", static_cast<uint8_t>((m_maxBitDepth > 8) ? 16 : 8), true };
+        CaptureFormat raw = {"INDI_RAW", (m_maxBitDepth > 8) ? "RAW 16" : "RAW 8", static_cast<uint8_t>((m_maxBitDepth > 8) ? 16 : 8), true };
 
         m_Channels = 1;
-        IUSaveText(&BayerT[2], getBayerString());// Get RAW Format
+        BayerTP[2].setText(getBayerString());// Get RAW Format
 
         addCaptureFormat(rgb);
         addCaptureFormat(raw);
@@ -1090,7 +1135,8 @@ bool ToupBase::ISNewSwitch(const char *dev, const char *name, ISState *states, c
                 m_TailLightSP.s = IPS_OK;
             else
             {
-                LOGF_ERROR("Failed to set tail light %s. %s", m_TailLightS[INDI_ENABLED].s == ISS_ON ? "ON" : "OFF", errorCodes(rc).c_str());
+                LOGF_ERROR("Failed to set tail light %s. %s", m_TailLightS[INDI_ENABLED].s == ISS_ON ? "ON" : "OFF",
+                           errorCodes(rc).c_str());
                 m_TailLightSP.s = IPS_ALERT;
                 IUResetSwitch(&m_TailLightSP);
                 m_TailLightS[prevIndex].s = ISS_ON;
@@ -1309,7 +1355,7 @@ bool ToupBase::StopStreaming()
 int ToupBase::SetTemperature(double temperature)
 {
     // JM 2023.11.21: Only activate cooler if the requested temperature is below current temperature
-    if (temperature < TemperatureN[0].value && activateCooler(true) == false)
+    if (temperature < TemperatureNP[0].getValue() && activateCooler(true) == false)
     {
         LOG_ERROR("Failed to toggle cooler.");
         return -1;
@@ -1535,29 +1581,29 @@ void ToupBase::TimerHit()
         HRESULT rc = FP(get_Temperature(m_Handle, &nTemperature));
         if (FAILED(rc))
         {
-            if (TemperatureNP.s != IPS_ALERT)
+            if (TemperatureNP.getState() != IPS_ALERT)
             {
-                TemperatureNP.s = IPS_ALERT;
-                IDSetNumber(&TemperatureNP, nullptr);
+                TemperatureNP.setState(IPS_ALERT);
+                TemperatureNP.apply();
                 LOGF_ERROR("get Temperature error. %s", errorCodes(rc).c_str());
             }
         }
-        else if (TemperatureNP.s == IPS_ALERT)
-            TemperatureNP.s = IPS_OK;
+        else if (TemperatureNP.getState() == IPS_ALERT)
+            TemperatureNP.setState(IPS_OK);
 
-        TemperatureN[0].value = nTemperature / 10.0;
+        TemperatureNP[0].setValue(nTemperature / 10.0);
 
         auto threshold = HasCooler() ? 0.1 : 0.2;
 
-        switch (TemperatureNP.s)
+        switch (TemperatureNP.getState())
         {
             case IPS_IDLE:
             case IPS_OK:
             case IPS_BUSY:
-                if (std::abs(TemperatureN[0].value - m_LastTemperature) > threshold)
+                if (std::abs(TemperatureNP[0].getValue() - m_LastTemperature) > threshold)
                 {
-                    m_LastTemperature = TemperatureN[0].value;
-                    IDSetNumber(&TemperatureNP, nullptr);
+                    m_LastTemperature = TemperatureNP[0].getValue();
+                    TemperatureNP.apply();
                 }
                 break;
 
@@ -1614,57 +1660,75 @@ void ToupBase::TimerHit()
     SetTimer(getCurrentPollingPeriod());
 }
 
-/* Helper function for NS timer call back */
-void ToupBase::TimerHelperNS(void *context)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+IPState ToupBase::guidePulse(INDI::Timer &timer, float ms, eGUIDEDIRECTION dir)
 {
-    static_cast<ToupBase*>(context)->TimerNS();
-}
-
-/* The timer call back for NS guiding */
-void ToupBase::TimerNS()
-{
-    LOG_DEBUG("Guide NS pulse complete");
-    m_NStimerID = -1;
-    GuideComplete(AXIS_DE);
-}
-
-/* Stop the timer for NS guiding */
-void ToupBase::stopTimerNS()
-{
-    if (m_NStimerID != -1)
+    timer.stop();
+    HRESULT rc = FP(ST4PlusGuide(m_Handle, dir, ms));
+    if (FAILED(rc))
     {
-        LOG_DEBUG("Guide NS pulse complete");
-        GuideComplete(AXIS_DE);
-        IERmTimer(m_NStimerID);
-        m_NStimerID = -1;
+        LOGF_ERROR("%s pulse guiding failed: %s", toString(dir), errorCodes(rc).c_str());
+        return IPS_ALERT;
+    }
+
+    LOGF_DEBUG("Starting %s guide for %f ms.", toString(dir), ms);
+
+    timer.callOnTimeout([this, dir]
+    {
+        // BUG in SDK. ST4 guiding pulses do not stop after duration.
+        // N.B. Pulse guiding has to be explicitly stopped.
+        FP(ST4PlusGuide(m_Handle, TOUPBASE_STOP, 0));
+        LOGF_DEBUG("Stopped %s guide.", toString(dir));
+
+        if (dir == TOUPBASE_NORTH || dir == TOUPBASE_SOUTH)
+            GuideComplete(AXIS_DE);
+        else if (dir == TOUPBASE_EAST || dir == TOUPBASE_WEST)
+            GuideComplete(AXIS_RA);
+    });
+
+    if (ms < 1)
+    {
+        usleep(ms * 1000);
+        timer.timeout();
+        return IPS_OK;
+    }
+
+    timer.start(ms);
+    return IPS_BUSY;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+///
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void ToupBase::stopGuidePulse(INDI::Timer &timer)
+{
+    if (timer.isActive())
+    {
+        timer.stop();
+        timer.timeout();
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-IPState ToupBase::guidePulseNS(uint32_t ms, eGUIDEDIRECTION dir, const char *dirName)
+const char *ToupBase::toString(eGUIDEDIRECTION dir)
 {
-    stopTimerNS();
-    LOGF_DEBUG("Starting %s guide for %d ms", dirName, ms);
-
-    // If pulse < 50ms, we wait. Otherwise, we schedule it.
-    int uSecs = ms * 1000;
-    HRESULT rc = FP(ST4PlusGuide(m_Handle, dir, ms));
-    if (FAILED(rc))
+    switch (dir)
     {
-        LOGF_ERROR("%s pulse guiding failed: %s", dirName, errorCodes(rc).c_str());
-        return IPS_ALERT;
+        case TOUPBASE_NORTH:
+            return "North";
+        case TOUPBASE_SOUTH:
+            return "South";
+        case TOUPBASE_EAST:
+            return "East";
+        case TOUPBASE_WEST:
+            return "West";
+        default:
+            return "Stop";
     }
-
-    if (ms < 50)
-    {
-        usleep(uSecs);
-        return IPS_OK;
-    }
-
-    m_NStimerID = IEAddTimer(ms, ToupBase::TimerHelperNS, this);
-    return IPS_BUSY;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1672,7 +1736,7 @@ IPState ToupBase::guidePulseNS(uint32_t ms, eGUIDEDIRECTION dir, const char *dir
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 IPState ToupBase::GuideNorth(uint32_t ms)
 {
-    return guidePulseNS(ms, TOUPBASE_NORTH, "North");
+    return guidePulse(mTimerNS, ms, TOUPBASE_NORTH);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1680,62 +1744,7 @@ IPState ToupBase::GuideNorth(uint32_t ms)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 IPState ToupBase::GuideSouth(uint32_t ms)
 {
-    return guidePulseNS(ms, TOUPBASE_SOUTH, "South");
-}
-
-/* Helper function for WE timer call back */
-void ToupBase::TimerHelperWE(void *context)
-{
-    static_cast<ToupBase*>(context)->TimerWE();
-}
-
-/* The timer call back for WE guiding */
-void ToupBase::TimerWE()
-{
-    LOG_DEBUG("Guide WE pulse complete");
-    m_WEtimerID = -1;
-    GuideComplete(AXIS_RA);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-////////////////////////////////////////////////////////////////////////////////////////////////////
-void ToupBase::stopTimerWE()
-{
-    if (m_WEtimerID != -1)
-    {
-        LOG_DEBUG("Guide WE pulse complete");
-        GuideComplete(AXIS_RA);
-        IERmTimer(m_WEtimerID);
-        m_WEtimerID = -1;
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-///
-////////////////////////////////////////////////////////////////////////////////////////////////////
-IPState ToupBase::guidePulseWE(uint32_t ms, eGUIDEDIRECTION dir, const char *dirName)
-{
-    stopTimerWE();
-    LOGF_DEBUG("Starting %s guide for %d ms", dirName, ms);
-
-    // If pulse < 50ms, we wait. Otherwise, we schedule it.
-    int uSecs = ms * 1000;
-    HRESULT rc = FP(ST4PlusGuide(m_Handle, dir, ms));
-    if (FAILED(rc))
-    {
-        LOGF_ERROR("%s pulse guiding failed: %s", dirName, errorCodes(rc).c_str());
-        return IPS_ALERT;
-    }
-
-    if (ms < 50)
-    {
-        usleep(uSecs);
-        return IPS_OK;
-    }
-
-    m_WEtimerID = IEAddTimer(ms, ToupBase::TimerHelperWE, this);
-    return IPS_BUSY;
+    return guidePulse(mTimerNS, ms, TOUPBASE_SOUTH);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1743,7 +1752,7 @@ IPState ToupBase::guidePulseWE(uint32_t ms, eGUIDEDIRECTION dir, const char *dir
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 IPState ToupBase::GuideEast(uint32_t ms)
 {
-    return guidePulseWE(ms, TOUPBASE_EAST, "East");
+    return guidePulse(mTimerWE, ms, TOUPBASE_EAST);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1751,7 +1760,7 @@ IPState ToupBase::GuideEast(uint32_t ms)
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 IPState ToupBase::GuideWest(uint32_t ms)
 {
-    return guidePulseWE(ms, TOUPBASE_WEST, "West");
+    return guidePulse(mTimerWE, ms, TOUPBASE_WEST);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1995,7 +2004,7 @@ bool ToupBase::SetCaptureFormat(uint8_t index)
             return false;
         }
 
-        m_BitsPerPixel = (index ? 8 : 16);
+        m_BitsPerPixel = index ? 8 : 16;
     }
     // Color
     else
@@ -2024,13 +2033,17 @@ bool ToupBase::SetCaptureFormat(uint8_t index)
         else
         {
             SetCCDCapability(GetCCDCapability() | CCD_HAS_BAYER);
-            IUSaveText(&BayerT[2], getBayerString());
-            IDSetText(&BayerTP, nullptr);
+            BayerTP[2].setText(getBayerString());
+            BayerTP.apply();
             m_BitsPerPixel = (m_maxBitDepth > 8) ? 16 : 8;
         }
     }
 
     m_CurrentVideoFormat = index;
+
+    uint32_t nBitDepth = 0;
+    FP(get_RawFormat(m_Handle, nullptr, &nBitDepth));
+    m_ADCDepthNP[0].setValue(nBitDepth);
 
     int bLevelStep = 1;
     if (m_BitsPerPixel > 8)

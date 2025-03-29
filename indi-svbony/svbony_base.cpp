@@ -420,7 +420,7 @@ bool SVBONYBase::initProperties()
     NicknameTP[0].fill("nickname", "nickname", mNickname);
     NicknameTP.fill(getDeviceName(), "NICKNAME", "Nickname", INFO_TAB, IP_RW, 60, IPS_IDLE);
 
-    IUSaveText(&BayerT[2], "GRBG");
+    BayerTP[2].setText("GRBG");
 
     addAuxControls();
 
@@ -526,7 +526,7 @@ bool SVBONYBase::updateProperties()
 
 bool SVBONYBase::Connect()
 {
-    LOGF_DEBUG("Attempting to open %s...", mCameraName.c_str());
+    LOGF_DEBUG("Attempting to open %s (CameraID=%d)...", mCameraName.c_str(), mCameraInfo.CameraID);
 
     auto ret = SVBOpenCamera(mCameraInfo.CameraID);
 
@@ -537,12 +537,14 @@ bool SVBONYBase::Connect()
     }
 
     // Restore settings
+    LOGF_DEBUG("Initializing the CCD: SVBRestoreDefaultParam(%d).", mCameraInfo.CameraID);
     ret = SVBRestoreDefaultParam(mCameraInfo.CameraID);
     if (ret != SVB_SUCCESS)
     {
         LOGF_WARN("Error Initializing the CCD (%s).", Helpers::toString(ret));
     }
 
+    LOGF_DEBUG("Initializing the CCD: SVBSetAutoSaveParam(%d, SVB_FALSE).", mCameraInfo.CameraID);
     ret = SVBSetAutoSaveParam(mCameraInfo.CameraID, SVB_FALSE);
     if (ret != SVB_SUCCESS)
     {
@@ -550,6 +552,7 @@ bool SVBONYBase::Connect()
     }
 
     // Get Camera Property
+    LOGF_DEBUG("Initializing the CCD: SVBGetCameraProperty(%d, &mCameraProperty).", mCameraInfo.CameraID);
     ret = SVBGetCameraProperty(mCameraInfo.CameraID, &mCameraProperty);
     if (ret != SVB_SUCCESS)
     {
@@ -557,6 +560,7 @@ bool SVBONYBase::Connect()
         return false;
     }
 
+    LOGF_DEBUG("Initializing the CCD: SVBGetCameraPropertyEx(%d, &mCameraPropertyExtended).", mCameraInfo.CameraID);
     ret = SVBGetCameraPropertyEx(mCameraInfo.CameraID, &mCameraPropertyExtended);
     if (ret != SVB_SUCCESS)
     {
@@ -623,17 +627,13 @@ bool SVBONYBase::Connect()
     if (mCameraProperty.IsColorCam)
     {
         cap |= CCD_HAS_BAYER;
-        IUSaveText(&BayerT[2], getBayerString());
-        IDSetText(&BayerTP, nullptr);
+        BayerTP[2].setText(getBayerString());
+        BayerTP.apply();
     }
 
     cap |= CCD_CAN_ABORT;
     cap |= CCD_CAN_SUBFRAME;
     cap |= CCD_HAS_STREAMING;
-
-#ifdef HAVE_WEBSOCKET
-    cap |= CCD_HAS_WEB_SOCKET;
-#endif
 
     SetCCDCapability(cap);
 
@@ -675,7 +675,8 @@ bool SVBONYBase::Disconnect()
     if (isSimulation() == false)
     {
         SVBStopVideoCapture(mCameraInfo.CameraID);
-        if (HasCooler()) {
+        if (HasCooler())
+        {
             activateCooler(false);
         }
         SVBCloseCamera(mCameraInfo.CameraID);
@@ -776,9 +777,9 @@ void SVBONYBase::setupParams()
         LOGF_DEBUG("Failed to get temperature (%s).", Helpers::toString(ret));
     else
     {
-        TemperatureN[0].value = value / 10.0;
-        IDSetNumber(&TemperatureNP, nullptr);
-        LOGF_INFO("The CCD Temperature is %.3f.", TemperatureN[0].value);
+        TemperatureNP[0].setValue(value / 10.0);
+        TemperatureNP.apply();
+        LOGF_INFO("The CCD Temperature is %.3f.", TemperatureNP[0].getValue());
     }
 
     ret = SVBStopVideoCapture(mCameraInfo.CameraID);
@@ -1158,10 +1159,10 @@ void SVBONYBase::sendImage(SVB_IMG_TYPE type, float duration)
         SetCCDCapability(GetCCDCapability() | CCD_HAS_BAYER);
         auto bayerString = getBayerString();
         // Send if different
-        if (strcmp(bayerString, BayerT[2].text))
+        if (!(BayerTP[2].isNameMatch(bayerString)))
         {
-            IUSaveText(&BayerT[2], bayerString);
-            IDSetText(&BayerTP, nullptr);
+            BayerTP[2].setText(bayerString);
+            BayerTP.apply();
         }
     }
     else
@@ -1181,7 +1182,7 @@ void SVBONYBase::temperatureTimerTimeout()
     SVB_ERROR_CODE ret;
     SVB_BOOL isAuto = SVB_FALSE;
     long value = 0;
-    IPState newState = TemperatureNP.s;
+    IPState newState = TemperatureNP.getState();
 
     ret = SVBGetControlValue(mCameraInfo.CameraID, SVB_CURRENT_TEMPERATURE, &value, &isAuto);
 
@@ -1197,13 +1198,13 @@ void SVBONYBase::temperatureTimerTimeout()
 
     // Update if there is a change
     if (
-        std::abs(mCurrentTemperature - TemperatureN[0].value) > 0.05 ||
-        TemperatureNP.s != newState
+        std::abs(mCurrentTemperature - TemperatureNP[0].getValue()) > 0.05 ||
+        TemperatureNP.getState() != newState
     )
     {
-        TemperatureNP.s = newState;
-        TemperatureN[0].value = mCurrentTemperature;
-        IDSetNumber(&TemperatureNP, nullptr);
+        TemperatureNP.setState(newState);
+        TemperatureNP[0].setValue(mCurrentTemperature);
+        TemperatureNP.apply();
         /*
                 This log should be commented out except when investigating bugs, etc., as it outputs very frequently.
                 LOGF_DEBUG("Current Temperature %.2f degree", mCurrentTemperature);

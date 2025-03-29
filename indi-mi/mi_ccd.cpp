@@ -154,8 +154,8 @@ bool MICCD::initProperties()
     INDI::CCD::initProperties();
     INDI::FilterInterface::initProperties(FILTER_TAB);
 
-    FilterSlotN[0].min = 1;
-    FilterSlotN[0].max = numFilters;
+    FilterSlotNP[0].setMin(1);
+    FilterSlotNP[0].setMax(numFilters);
 
     CaptureFormat mono = {"INDI_MONO", "Mono", 16, true};
     addCaptureFormat(mono);
@@ -425,7 +425,7 @@ bool MICCD::setupParams()
     int expTime = 0;
     gxccd_get_integer_parameter(cameraHandle, GIP_MINIMAL_EXPOSURE, &expTime);
     minExpTime = expTime / 1000000.0; // convert to seconds
-    PrimaryCCD.setMinMaxStep("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", minExpTime, 3600, 1, false);
+    PrimaryCCD.setMinMaxStep("CCD_EXPOSURE", "CCD_EXPOSURE_VALUE", minExpTime, 3600, 1, true);
 
     if (!sim && maxGainValue == 0)
     {
@@ -465,7 +465,7 @@ bool MICCD::setupParams()
 int MICCD::SetTemperature(double temperature)
 {
     // If there difference, for example, is less than TEMP_THRESHOLD degrees, let's immediately return OK.
-    if (fabs(temperature - TemperatureN[0].value) < TEMP_THRESHOLD)
+    if (fabs(temperature - TemperatureNP[0].getValue()) < TEMP_THRESHOLD)
         return 1;
 
     TemperatureRequest = temperature;
@@ -806,11 +806,9 @@ bool MICCD::ISNewText(const char *dev, const char *name, char *texts[], char *na
 {
     if (strcmp(dev, getDeviceName()) == 0)
     {
-        if (!strcmp(name, FilterNameTP->name))
-        {
-            INDI::FilterInterface::processText(dev, name, texts, names, n);
+        if (INDI::FilterInterface::processText(dev, name, texts, names, n))
             return true;
-        }
+
     }
 
     return INDI::CCD::ISNewText(dev, name, texts, names, n);
@@ -820,11 +818,9 @@ bool MICCD::ISNewNumber(const char *dev, const char *name, double values[], char
 {
     if (strcmp(dev, getDeviceName()) == 0)
     {
-        if (!strcmp(name, FilterSlotNP.name))
-        {
-            INDI::FilterInterface::processNumber(dev, name, values, names, n);
+        if (INDI::FilterInterface::processNumber(dev, name, values, names, n))
             return true;
-        }
+
 
         if (!strcmp(name, FanNP.name))
         {
@@ -928,10 +924,10 @@ void MICCD::updateTemperature()
 
     if (isSimulation())
     {
-        ccdtemp = TemperatureN[0].value;
-        if (TemperatureN[0].value < TemperatureRequest)
+        ccdtemp = TemperatureNP[0].getValue();
+        if (TemperatureNP[0].getValue() < TemperatureRequest)
             ccdtemp += TEMP_THRESHOLD;
-        else if (TemperatureN[0].value > TemperatureRequest)
+        else if (TemperatureNP[0].getValue() > TemperatureRequest)
             ccdtemp -= TEMP_THRESHOLD;
 
         ccdpower = 30;
@@ -954,7 +950,7 @@ void MICCD::updateTemperature()
         }
     }
 
-    TemperatureN[0].value = ccdtemp;
+    TemperatureNP[0].setValue(ccdtemp);
     CoolerN[0].value      = ccdpower * 100.0;
 
     //    if (TemperatureNP.s == IPS_BUSY && fabs(TemperatureN[0].value - TemperatureRequest) <= TEMP_THRESHOLD)
@@ -967,7 +963,7 @@ void MICCD::updateTemperature()
     if (err)
     {
         if (err & 1)
-            TemperatureNP.s = IPS_ALERT;
+            TemperatureNP.setState(IPS_ALERT);
         if (err & 2)
             CoolerNP.s = IPS_ALERT;
     }
@@ -976,7 +972,7 @@ void MICCD::updateTemperature()
         CoolerNP.s = IPS_OK;
     }
 
-    IDSetNumber(&TemperatureNP, nullptr);
+    TemperatureNP.apply();
     IDSetNumber(&CoolerNP, nullptr);
     temperatureID = IEAddTimer(getCurrentPollingPeriod(), MICCD::updateTemperatureHelper, this);
 }

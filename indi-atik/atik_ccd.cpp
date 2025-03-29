@@ -183,7 +183,7 @@ bool ATIKCCD::initProperties()
                        ISR_1OFMANY, 60, IPS_IDLE);
 #endif
 
-    IUSaveText(&BayerT[2], "RGGB");
+    BayerTP[2].setText("RGGB");
 
     INDI::FilterInterface::initProperties(FILTER_TAB);
 
@@ -208,8 +208,8 @@ bool ATIKCCD::updateProperties()
         // Even if there is no cooler, we define temperature property as READ ONLY
         else
         {
-            TemperatureNP.p = IP_RO;
-            defineProperty(&TemperatureNP);
+            TemperatureNP.setPermission(IP_RO);
+            defineProperty(TemperatureNP);
         }
 
         if (m_isHorizon)
@@ -243,7 +243,7 @@ bool ATIKCCD::updateProperties()
             deleteProperty(CoolerSP.name);
         }
         else
-            deleteProperty(TemperatureNP.name);
+            deleteProperty(TemperatureNP);
 
         if (m_isHorizon)
         {
@@ -340,8 +340,8 @@ bool ATIKCCD::setupParams()
     if (colorType == ARTEMIS_COLOUR_RGGB)
     {
         cap |= CCD_HAS_BAYER;
-        IUSaveText(&BayerT[0], std::to_string(normalOffsetX).c_str());
-        IUSaveText(&BayerT[1], std::to_string(normalOffsetY).c_str());
+        BayerTP[0].setText(std::to_string(normalOffsetX).c_str());
+        BayerTP[1].setText(std::to_string(normalOffsetY).c_str());
     }
 
     LOGF_DEBUG("Camera is %s.", colorType == ARTEMIS_COLOUR_RGGB ? "Color" : "Mono");
@@ -394,8 +394,8 @@ bool ATIKCCD::setupParams()
             setDriverInterface(getDriverInterface() | FILTER_INTERFACE);
             syncDriverInfo();
 
-            FilterSlotN[0].min = 1;
-            FilterSlotN[0].max = numFilters;
+            FilterSlotNP[0].setMin(1);
+            FilterSlotNP[0].setMax(numFilters);
 
             LOGF_INFO("Detected %d-position internal filter wheel.", numFilters);
         }
@@ -646,11 +646,9 @@ bool ATIKCCD::ISNewText(const char *dev, const char *name, char *texts[], char *
 {
     if (dev != nullptr && !strcmp(dev, getDeviceName()))
     {
-        if (strcmp(name, FilterNameTP->name) == 0)
-        {
-            INDI::FilterInterface::processText(dev, name, texts, names, n);
+        if (INDI::FilterInterface::processText(dev, name, texts, names, n))
             return true;
-        }
+
     }
 
     return INDI::CCD::ISNewText(dev, name, texts, names, n);
@@ -660,12 +658,10 @@ bool ATIKCCD::ISNewNumber(const char *dev, const char *name, double values[], ch
 {
     if (dev != nullptr && !strcmp(dev, getDeviceName()))
     {
-        if (!strcmp(name, FilterSlotNP.name))
-        {
-            INDI::FilterInterface::processNumber(dev, name, values, names, n);
+        if (INDI::FilterInterface::processNumber(dev, name, values, names, n))
             return true;
-        }
-        else if (!strcmp(name, ControlNP.name))
+
+        if (!strcmp(name, ControlNP.name))
         {
             bool changed = false;
 
@@ -784,16 +780,16 @@ bool ATIKCCD::ISNewSwitch(const char *dev, const char *name, ISState *states, ch
             // If user turns on cooler, but the requested temperature is higher than current temperature by more
             // than five degrees, then we consider this endangers the device and we alter the temperature target.
             // The five degrees tolerance is there to adapt to cooling overshoot.
-            if (enabled && TemperatureN[0].value + 5.0f < TemperatureRequest)
+            if (enabled && TemperatureNP[0].getValue() + 5.0f < TemperatureRequest)
             {
                 LOGF_WARN("Current temperature is %.2f, refusing to set %.2f (5 degrees warming tolerance). "
                           "To control cooler, request a lower temperature or let the device warm above %.2f.",
-                          TemperatureN[0].value, TemperatureRequest, TemperatureRequest - 5.0f);
+                          TemperatureNP[0].getValue(), TemperatureRequest, TemperatureRequest - 5.0f);
 
                 // If current temperature is lower than zero, then we shouldn't risk
                 // setting temperature to any arbitrary value. Instead, we turn the cooler off and ask
                 // user to explicitly set a new temperature.
-                if (TemperatureN[0].value < 0)
+                if (TemperatureNP[0].getValue() < 0)
                 {
                     CoolerS[COOLER_ON].s = ISS_OFF;
                     CoolerS[COOLER_OFF].s = ISS_ON;
@@ -912,7 +908,7 @@ bool ATIKCCD::ISNewSwitch(const char *dev, const char *name, ISState *states, ch
 int ATIKCCD::SetTemperature(double temperature)
 {
     // If there difference, for example, is less than 0.1 degrees, let's immediately return OK.
-    if (fabs(temperature - TemperatureN[0].value) < TEMP_THRESHOLD)
+    if (fabs(temperature - TemperatureNP[0].getValue()) < TEMP_THRESHOLD)
         return 1;
 
     // setpoint is int 1/100 of a degree C.
@@ -939,7 +935,7 @@ bool ATIKCCD::activateCooler(bool enable)
     IUResetSwitch(&CoolerSP);
     if (enable)
     {
-        if (TemperatureRequest < TemperatureN[0].value)
+        if (TemperatureRequest < TemperatureNP[0].getValue())
         {
             if (CoolerSP.s != IPS_BUSY)
                 LOG_INFO("Camera cooler is on.");
@@ -1130,7 +1126,7 @@ bool ATIKCCD::grabImage()
 /////////////////////////////////////////////////////////
 void ATIKCCD::TimerHit()
 {
-    double currentTemperature = TemperatureN[0].value;
+    double currentTemperature = TemperatureNP[0].getValue();
 
     int flags, level, minlvl, maxlvl, setpoint;
 
@@ -1152,15 +1148,15 @@ void ATIKCCD::TimerHit()
     pthread_mutex_lock(&accessMutex);
     rc = ArtemisTemperatureSensorInfo(hCam, 1, &temperature);
     pthread_mutex_unlock(&accessMutex);
-    TemperatureN[0].value = temperature / 100.0;
+    TemperatureNP[0].setValue(temperature / 100.0);
 
-    switch (TemperatureNP.s)
+    switch (TemperatureNP.getState())
     {
         case IPS_IDLE:
         case IPS_OK:
-            if (fabs(currentTemperature - TemperatureN[0].value)  > TEMP_THRESHOLD / 10.0)
+            if (fabs(currentTemperature - TemperatureNP[0].getValue())  > TEMP_THRESHOLD / 10.0)
             {
-                IDSetNumber(&TemperatureNP, nullptr);
+                TemperatureNP.apply();
             }
             break;
 
@@ -1173,7 +1169,7 @@ void ATIKCCD::TimerHit()
             //            {
             //                TemperatureNP.s = IPS_OK;
             //            }
-            IDSetNumber(&TemperatureNP, nullptr);
+            TemperatureNP.apply();
             break;
     }
 
@@ -1209,7 +1205,7 @@ void ATIKCCD::TimerHit()
     }
 
     // If filter wheel is in motion
-    if (FilterSlotNP.s == IPS_BUSY)
+    if (FilterSlotNP.getState() == IPS_BUSY)
     {
         int numFilters, moving, currentPos, targetPos;
         pthread_mutex_lock(&accessMutex);
@@ -1543,7 +1539,7 @@ bool ATIKCCD::saveConfigItems(FILE *fp)
     }
 
     if (m_CameraFlags & ARTEMIS_PROPERTIES_CAMERAFLAGS_HAS_FILTERWHEEL)
-        IUSaveConfigText(fp, FilterNameTP);
+        FilterNameTP.save(fp);
     // JM 2020-01-15: Seems like setting filter slot results in spinning
     // of filter wheel. So we just save the filter names.
     //INDI::FilterInterface::saveConfigItems(fp);

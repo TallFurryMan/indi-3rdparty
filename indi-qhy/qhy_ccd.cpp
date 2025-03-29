@@ -155,8 +155,8 @@ bool QHYCCD::initProperties()
     INDI::CCD::initProperties();
     INDI::FilterInterface::initProperties(FILTER_TAB);
 
-    FilterSlotN[0].min = 1;
-    FilterSlotN[0].max = 9;
+    FilterSlotNP[0].setMin(1);
+    FilterSlotNP[0].setMax(9);
 
     // QHY SDK Version
     IUFillText(&SDKVersionT[0], "VERSION", "Version", "NA");
@@ -361,8 +361,8 @@ void QHYCCD::ISGetProperties(const char *dev)
         if (HasFilters)
         {
             //Define the Filter Slot and name properties
-            defineProperty(&FilterSlotNP);
-            if (FilterNameT != nullptr)
+            defineProperty(FilterSlotNP);
+            if (FilterNameTP.size() > 0)
                 defineProperty(FilterNameTP);
         }
 
@@ -976,7 +976,7 @@ bool QHYCCD::Connect()
                     if (GetQHYCCDCFWStatus(m_CameraHandle, currentPos) == QHYCCD_SUCCESS)
                     {
                         CurrentFilter = strtol(currentPos, nullptr, 16) + 1;
-                        FilterSlotN[0].value = CurrentFilter;
+                        FilterSlotNP[0].setValue(CurrentFilter);
                     }
 
                     updateFilterProperties();
@@ -1031,26 +1031,26 @@ bool QHYCCD::Connect()
         {
             if (ret == BAYER_GB)
             {
-                IUSaveText(&BayerT[2], "GBRG");
+                BayerTP[2].setText("GBRG");
                 cap |= CCD_HAS_BAYER;
             }
             else if (ret == BAYER_GR)
             {
-                IUSaveText(&BayerT[2], "GRBG");
+                BayerTP[2].setText("GRBG");
                 cap |= CCD_HAS_BAYER;
             }
             else if (ret == BAYER_BG)
             {
-                IUSaveText(&BayerT[2], "BGGR");
+                BayerTP[2].setText("BGGR");
                 cap |= CCD_HAS_BAYER;
             }
             else if (ret == BAYER_RG)
             {
-                IUSaveText(&BayerT[2], "RGGB");
+                BayerTP[2].setText("RGGB");
                 cap |= CCD_HAS_BAYER;
             }
 
-            LOGF_DEBUG("Color camera: %s", BayerT[2].text);
+            LOGF_DEBUG("Color camera: %s", BayerTP[2].getText());
         }
 
         ////////////////////////////////////////////////////////////////////
@@ -1264,17 +1264,17 @@ bool QHYCCD::setupParams()
 int QHYCCD::SetTemperature(double temperature)
 {
     // If there difference, for example, is less than 0.1 degrees, let's immediately return OK.
-    if (fabs(temperature - TemperatureN[0].value) < UPDATE_THRESHOLD)
+    if (fabs(temperature - TemperatureNP[0].getValue()) < UPDATE_THRESHOLD)
         return 1;
 
-    LOGF_DEBUG("Requested temperature is %.f, current temperature is %.f", temperature, TemperatureN[0].value);
+    LOGF_DEBUG("Requested temperature is %.f, current temperature is %.f", temperature, TemperatureNP[0].getValue());
 
     m_TemperatureRequest = temperature;
     m_PWMRequest = -1;
 
     SetQHYCCDParam(m_CameraHandle, CONTROL_COOLER, m_TemperatureRequest);
 
-    setCoolerEnabled(m_TemperatureRequest <= TemperatureN[0].value);
+    setCoolerEnabled(m_TemperatureRequest <= TemperatureNP[0].getValue());
     setCoolerMode(COOLER_AUTOMATIC);
     return 0;
 }
@@ -1584,7 +1584,7 @@ void QHYCCD::TimerHit()
     //        }
     //    }
 
-    if (FilterSlotNP.s == IPS_BUSY)
+    if (FilterSlotNP.getState() == IPS_BUSY)
     {
         char currentPos[MAXINDINAME] = {0};
         int rc = GetQHYCCDCFWStatus(m_CameraHandle, currentPos);
@@ -1605,9 +1605,9 @@ void QHYCCD::TimerHit()
         }
         else if (++m_FilterCheckCounter > 30)
         {
-            FilterSlotNP.s = IPS_ALERT;
+            FilterSlotNP.setState(IPS_ALERT);
             LOG_ERROR("Filter change timed out.");
-            IDSetNumber(&FilterSlotNP, nullptr);
+            FilterSlotNP.apply();
         }
     }
 
@@ -1679,13 +1679,13 @@ bool QHYCCD::ISNewSwitch(const char *dev, const char *name, ISState *states, cha
             {
                 if (HasCoolerAutoMode)
                 {
-                    double targetTemperature = TemperatureN[0].value;
+                    double targetTemperature = TemperatureNP[0].getValue();
                     if (targetTemperature > 0)
                         targetTemperature = 0;
                     if (SetTemperature(targetTemperature) == 0)
                     {
-                        TemperatureNP.s = IPS_BUSY;
-                        IDSetNumber(&TemperatureNP, nullptr);
+                        TemperatureNP.setState(IPS_BUSY);
+                        TemperatureNP.apply();
                     }
                     return true;
                 }
@@ -1710,8 +1710,8 @@ bool QHYCCD::ISNewSwitch(const char *dev, const char *name, ISState *states, cha
                     CoolerSP.s = IPS_IDLE;
                     IDSetSwitch(&CoolerSP, nullptr);
 
-                    TemperatureNP.s = IPS_IDLE;
-                    IDSetNumber(&TemperatureNP, nullptr);
+                    TemperatureNP.setState(IPS_IDLE);
+                    TemperatureNP.apply();
 
                     setCoolerMode(COOLER_MANUAL);
                     LOG_INFO("Camera is warming up.");
@@ -1721,8 +1721,8 @@ bool QHYCCD::ISNewSwitch(const char *dev, const char *name, ISState *states, cha
                     // Warm up the camera in auto mode
                     if (SetTemperature(30) == 0)
                     {
-                        TemperatureNP.s = IPS_IDLE;
-                        IDSetNumber(&TemperatureNP, nullptr);
+                        TemperatureNP.setState(IPS_IDLE);
+                        TemperatureNP.apply();
                     }
                     LOG_INFO("Camera is warming up.");
                     return true;
@@ -1902,11 +1902,9 @@ bool QHYCCD::ISNewText(const char *dev, const char *name, char *texts[], char *n
     {
         //  This is for our device
         //  Now lets see if it's something we process here
-        if (strcmp(name, FilterNameTP->name) == 0)
-        {
-            INDI::FilterInterface::processText(dev, name, texts, names, n);
+        if (INDI::FilterInterface::processText(dev, name, texts, names, n))
             return true;
-        }
+
     }
 
     return INDI::CCD::ISNewText(dev, name, texts, names, n);
@@ -1917,10 +1915,8 @@ bool QHYCCD::ISNewNumber(const char *dev, const char *name, double values[], cha
     //  first check if it's for our device
     if (dev != nullptr && strcmp(dev, getDeviceName()) == 0)
     {
-        if (!strcmp(name, FilterSlotNP.name))
-        {
-            return INDI::FilterInterface::processNumber(dev, name, values, names, n);
-        }
+        if (INDI::FilterInterface::processNumber(dev, name, values, names, n))
+            return true;
 
         //////////////////////////////////////////////////////////////////////
         /// Gain Control
@@ -2236,10 +2232,10 @@ void QHYCCD::updateTemperature()
 
     if (isSimulation())
     {
-        currentTemperature = TemperatureN[0].value;
-        if (TemperatureN[0].value < m_TemperatureRequest)
+        currentTemperature = TemperatureNP[0].getValue();
+        if (TemperatureNP[0].getValue() < m_TemperatureRequest)
             currentTemperature += UPDATE_THRESHOLD * 10;
-        else if (TemperatureN[0].value > m_TemperatureRequest)
+        else if (TemperatureNP[0].getValue() > m_TemperatureRequest)
             currentTemperature -= UPDATE_THRESHOLD * 10;
 
         currentCoolingPower = 128;
@@ -2250,7 +2246,7 @@ void QHYCCD::updateTemperature()
         //usleep(1000000);
 
         // Call this function as long as we are busy
-        if (TemperatureNP.s == IPS_BUSY)
+        if (TemperatureNP.getState() == IPS_BUSY)
         {
             SetQHYCCDParam(m_CameraHandle, CONTROL_COOLER, m_TemperatureRequest);
         }
@@ -2260,7 +2256,7 @@ void QHYCCD::updateTemperature()
         }
         // JM 2020-05-18: QHY reported the code below break automatic coolers, so it is only avaiable for manual coolers.
         // Temperature Readout does not work, if we do not set "something", so lets set the current value...
-        else if (CoolerModeS[COOLER_MANUAL].s == ISS_ON && TemperatureNP.s == IPS_OK)
+        else if (CoolerModeS[COOLER_MANUAL].s == ISS_ON && TemperatureNP.getState() == IPS_OK)
         {
             SetQHYCCDParam(m_CameraHandle, CONTROL_MANULPWM, CoolerN[0].value * 255.0 / 100 );
         }
@@ -2270,27 +2266,27 @@ void QHYCCD::updateTemperature()
     }
 
     // Only update if above update threshold
-    if (std::abs(currentTemperature - TemperatureN[0].value) > UPDATE_THRESHOLD)
+    if (std::abs(currentTemperature - TemperatureNP[0].getValue()) > UPDATE_THRESHOLD)
     {
         if (currentTemperature > 100)
-            TemperatureNP.s = IPS_ALERT;
+            TemperatureNP.setState(IPS_ALERT);
         else
-            TemperatureN[0].value = currentTemperature;
-        IDSetNumber(&TemperatureNP, nullptr);
+            TemperatureNP[0].setValue(currentTemperature);
+        TemperatureNP.apply();
 
         LOGF_DEBUG("CCD T.: %.f (C)", currentTemperature);
     }
     // Restart temperature regulation if needed.
-    else if (TemperatureNP.s == IPS_OK && fabs(TemperatureN[0].value - m_TemperatureRequest) > UPDATE_THRESHOLD)
+    else if (TemperatureNP.getState() == IPS_OK && fabs(TemperatureNP[0].getValue() - m_TemperatureRequest) > UPDATE_THRESHOLD)
     {
         if (currentTemperature > 100)
-            TemperatureNP.s       = IPS_ALERT;
+            TemperatureNP.setState(IPS_ALERT);
         else
         {
-            TemperatureN[0].value = currentTemperature;
-            TemperatureNP.s       = IPS_BUSY;
+            TemperatureNP[0].setValue(currentTemperature);
+            TemperatureNP.setState(IPS_BUSY);
         }
-        IDSetNumber(&TemperatureNP, nullptr);
+        TemperatureNP.apply();
     }
 
     // Update cooling power if needed.
@@ -2448,8 +2444,8 @@ bool QHYCCD::StartStreaming()
     LOGF_DEBUG("SetQHYCCDResolution x: %d y: %d w: %d h: %d", subX, subY, subW, subH, ret);
 
     INDI_PIXEL_FORMAT qhyFormat = INDI_MONO;
-    if (BayerT[2].text && formats.count(BayerT[2].text) != 0)
-        qhyFormat = formats.at(BayerT[2].text);
+    if (BayerTP[2].getText() && formats.count(BayerTP[2].getText()) != 0)
+        qhyFormat = formats.at(BayerTP[2].getText());
 
     double uSecs = static_cast<long>(m_ExposureRequest * 950000.0);
 
@@ -2699,36 +2695,36 @@ void QHYCCD::debugTriggered(bool enable)
 
 bool QHYCCD::updateFilterProperties()
 {
-    if (FilterNameTP->ntp != m_MaxFilterCount)
+    if (FilterNameTP.size() != static_cast<size_t>(m_MaxFilterCount))
     {
         LOGF_DEBUG("Max filter count is: %d", m_MaxFilterCount);
-        FilterSlotN[0].max = m_MaxFilterCount;
+        FilterSlotNP[0].setMax(m_MaxFilterCount);
+
         char filterName[MAXINDINAME];
         char filterLabel[MAXINDILABEL];
-        if (FilterNameT != nullptr)
-        {
-            for (int i = 0; i < FilterNameTP->ntp; i++)
-                free(FilterNameT[i].text);
-            delete [] FilterNameT;
-        }
 
-        FilterNameT = new IText[m_MaxFilterCount];
-        memset(FilterNameT, 0, sizeof(IText) * m_MaxFilterCount);
+        FilterNameTP.resize(0);
+
         for (int i = 0; i < m_MaxFilterCount; i++)
         {
             snprintf(filterName, MAXINDINAME, "FILTER_SLOT_NAME_%d", i + 1);
             snprintf(filterLabel, MAXINDILABEL, "Filter#%d", i + 1);
-            IUFillText(&FilterNameT[i], filterName, filterLabel, filterLabel);
+
+            INDI::WidgetText oneText;
+            oneText.fill(filterName, filterLabel, filterLabel);
+            FilterNameTP.push(std::move(oneText));
         }
-        IUFillTextVector(FilterNameTP, FilterNameT, m_MaxFilterCount, getDeviceName(), "FILTER_NAME", "Filter",
-                         FilterSlotNP.group, IP_RW, 0, IPS_IDLE);
+
+        FilterNameTP.fill(getDeviceName(), "FILTER_NAME", "Filter",
+                          FilterSlotNP.getGroupName(), IP_RW, 0, IPS_IDLE);
+        FilterNameTP.shrink_to_fit();
 
         // Try to load config filter labels
         for (int i = 0; i < m_MaxFilterCount; i++)
         {
             char oneFilter[MAXINDINAME] = {0};
-            if (IUGetConfigText(getDeviceName(), FilterNameTP->name, FilterNameT[i].name, oneFilter, MAXINDINAME) == 0)
-                IUSaveText(&FilterNameT[i], oneFilter);
+            if (IUGetConfigText(getDeviceName(), FilterNameTP.getName(), FilterNameTP[i].getName(), oneFilter, MAXINDINAME) == 0)
+                FilterNameTP[i].setText(oneFilter);
         }
 
         return true;

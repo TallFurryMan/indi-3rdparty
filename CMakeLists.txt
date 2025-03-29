@@ -124,11 +124,9 @@ IF (UNIX OR APPLE)
             STRING(FIND ${SOURCE_FILE} libsbig DIR6_FOUND)            
             STRING(FIND ${SOURCE_FILE} libinovasdk DIR8_FOUND)
             STRING(FIND ${SOURCE_FILE} libsvbony DIR9_FOUND)
-            STRING(FIND ${SOURCE_FILE} libahp-xc DIR10_FOUND)
-            STRING(FIND ${SOURCE_FILE} libahp-gt DIR11_FOUND)
             IF (NOT ${DIR1_FOUND} EQUAL -1 OR NOT ${DIR2_FOUND} EQUAL -1 OR NOT ${DIR3_FOUND} EQUAL -1 OR NOT ${DIR4_FOUND} EQUAL -1 OR
                 NOT ${DIR5_FOUND} EQUAL -1 OR NOT ${DIR6_FOUND} EQUAL -1 OR NOT ${DIR7_FOUND} EQUAL -1 OR NOT ${DIR8_FOUND} EQUAL -1 OR
-                NOT ${DIR9_FOUND} EQUAL -1 OR NOT ${DIR10_FOUND} EQUAL -1 OR NOT ${DIR11_FOUND} EQUAL -1)
+                NOT ${DIR9_FOUND} EQUAL -1)
                 LIST(REMOVE_ITEM ALL_SOURCE_FILES ${SOURCE_FILE})
             ENDIF ()
         ENDFOREACH ()
@@ -240,7 +238,15 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(WITH_GPSD Off)
     set(WITH_AHP_XC Off)
     set(WITH_AHP_GT Off)
-    set(WITH_ASTROASIS Off)
+    # The drivers below are not yet compatible with Apple Silicon since their libraries are not universal binaries
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+        SET(WITH_ASICAM Off)
+        SET(WITH_SBIG Off)
+        SET(WITH_ATIK Off)
+        SET(WITH_TOUPBASE Off)
+        SET(WITH_QHY Off)
+        SET(WITH_SVBONY Off)
+    endif()
 ENDIF ()
 # Disable apogee, qhy and mi with gcc 4.8 and earlier versions
 IF (CMAKE_COMPILER_IS_GNUCXX AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
@@ -333,16 +339,6 @@ endif()
 add_subdirectory(libpktriggercord)
 endif (WITH_PENTAX)
 
-# libahp-xc
-if (WITH_AHP_XC)
-add_subdirectory(libahp-xc)
-endif(WITH_AHP_XC)
-
-# libahp-gt
-if (WITH_AHP_GT)
-add_subdirectory(libahp-gt)
-endif(WITH_AHP_GT)
-
 #toupbase dependencies
 if (WITH_TOUPBASE)
 add_subdirectory(libmeadecam)
@@ -355,6 +351,7 @@ add_subdirectory(libnncam)
 add_subdirectory(libmallincam)
 add_subdirectory(libomegonprocam)
 add_subdirectory(libtscam)
+add_subdirectory(libsvbonycam)
 endif (WITH_TOUPBASE)
 
 #libsvbiny
@@ -379,11 +376,6 @@ ELSE(BUILD_LIBS)
 if (WITH_EQMOD)
 add_subdirectory(indi-eqmod)
 endif(WITH_EQMOD)
-
-## AstroLink4
-if (WITH_ASTROLINK4)
-add_subdirectory(indi-astrolink4)
-endif(WITH_ASTROLINK4)
 
 ## SkyWalker
 if (WITH_SKYWALKER)
@@ -424,11 +416,6 @@ endif(WITH_TALON6)
 if (WITH_ROLLOFFINO)
 add_subdirectory(indi-rolloffino)
 endif(WITH_ROLLOFFINO)
-
-## SpectraCyber
-if (WITH_SPECTRACYBER)
-add_subdirectory(indi-spectracyber)
-endif(WITH_SPECTRACYBER)
 
 ## Shelyak
 if (WITH_SHELYAK)
@@ -490,14 +477,15 @@ find_package(ALTAIRCAM)
 find_package(BRESSERCAM)
 find_package(OGMACAM)
 find_package(TSCAM)
+find_package(SVBONYCAM)
 find_package(STARSHOOTG)
 find_package(NNCAM)
 find_package(MALLINCAM)
 find_package(OMEGONPROCAM)
 find_package(MEADECAM)
-if (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
+if (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND SVBONYCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
 add_subdirectory(indi-toupbase)
-else (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
+else (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND SVBONYCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
 if (NOT TOUPCAM_FOUND)
 add_subdirectory(libtoupcam)
 endif()
@@ -512,6 +500,9 @@ add_subdirectory(libogmacam)
 endif()
 if (NOT TSCAM_FOUND)
 add_subdirectory(libtscam)
+endif()
+if (NOT SVBONYCAM_FOUND)
+add_subdirectory(libsvbonycam)
 endif()
 if (NOT STARSHOOTG_FOUND)
 add_subdirectory(libstarshootg)
@@ -529,7 +520,7 @@ if (NOT MEADECAM_FOUND)
 add_subdirectory(libmeadecam)
 endif()
 SET(LIBRARIES_FOUND FALSE)
-endif (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
+endif (TOUPCAM_FOUND AND ALTAIRCAM_FOUND AND BRESSERCAM_FOUND AND OGMACAM_FOUND AND TSCAM_FOUND AND SVBONYCAM_FOUND AND STARSHOOTG_FOUND AND NNCAM_FOUND AND MALLINCAM_FOUND AND OMEGONPROCAM_FOUND AND MEADECAM_FOUND)
 endif (WITH_TOUPBASE)
 
 ## Bee Focuser
@@ -660,11 +651,6 @@ if (WITH_MGEN)
 add_subdirectory(indi-mgen)
 endif (WITH_MGEN)
 
-# Astromechanics Focuser
-if (WITH_ASTROMECHFOC)
-add_subdirectory(indi-astromechfoc)
-endif(WITH_ASTROMECHFOC)
-
 ## LIME-SDR
 if (WITH_LIMESDR)
 find_package(LIMESUITE)
@@ -690,10 +676,6 @@ endif()
 if (WITH_NIGHTSCAPE)
 add_subdirectory(indi-nightscape)
 endif(WITH_NIGHTSCAPE)
-
-if (WITH_DREAMFOCUSER)
-add_subdirectory(indi-dreamfocuser)
-endif()
 
 # Avalon StarGO
 if (WITH_AVALON)
@@ -724,8 +706,6 @@ if (WITH_AHP_XC)
 find_package(AHPXC)
 if(AHP_XC_FOUND)
 add_subdirectory(indi-ahp-xc)
-else(AHP_XC_FOUND)
-add_subdirectory(libahp-xc)
 endif(AHP_XC_FOUND)
 endif(WITH_AHP_XC)
 
@@ -835,6 +815,10 @@ if (WITH_TOUPBASE AND NOT TSCAM_FOUND)
 message(STATUS "libtscam was not found and will now be built. Please install libtscam first before running cmake again to install indi-toupbase.")
 endif (WITH_TOUPBASE AND NOT TSCAM_FOUND)
 
+if (WITH_TOUPBASE AND NOT SVBONYCAM_FOUND)
+message(STATUS "libsvbonycam was not found and will now be built. Please install libsvbonycam first before running cmake again to install indi-toupbase.")
+endif (WITH_TOUPBASE AND NOT SVBONYCAM_FOUND)
+
 if (WITH_TOUPBASE AND NOT STARSHOOTG_FOUND)
 message(STATUS "libstarshootg was not found and will now be built. Please install libstarshootg first before running cmake again to install indi-toupbase.")
 endif (WITH_TOUPBASE AND NOT STARSHOOTG_FOUND)
@@ -886,14 +870,6 @@ endif (WITH_SVBONY AND NOT SVBONY_FOUND)
 if (WITH_PLAYERONE AND NOT PLAYERONE_FOUND)
 message(STATUS "libplayerone was not found and will now be built. Please install this libplayerone first before running cmake again to install indi-playerone.")
 endif (WITH_PLAYERONE AND NOT PLAYERONE_FOUND)
-
-if (WITH_AHP_XC AND NOT AHP_XC_FOUND)
-message(STATUS "libahp-xc was not found and will now be built. Please install libahp-xc first before running cmake again to install indi-ahp-xc.")
-endif (WITH_AHP_XC AND NOT AHP_XC_FOUND)
-
-if (WITH_AHP_GT AND NOT AHP_GT_FOUND)
-message(STATUS "libahp-gt was not found and will now be built. Please install libahp-gt first before running cmake again to install indi-ahpgt.")
-endif (WITH_AHP_GT AND NOT AHP_GT_FOUND)
 
 if (WITH_ASTROASIS AND NOT ASTROASIS_FOUND)
 message(STATUS "libastroasis was not found and will now be built. Please install libastroasis first before running cmake again to install indi-astroasis.")
