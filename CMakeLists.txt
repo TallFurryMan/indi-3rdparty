@@ -124,11 +124,9 @@ IF (UNIX OR APPLE)
             STRING(FIND ${SOURCE_FILE} libsbig DIR6_FOUND)            
             STRING(FIND ${SOURCE_FILE} libinovasdk DIR8_FOUND)
             STRING(FIND ${SOURCE_FILE} libsvbony DIR9_FOUND)
-            STRING(FIND ${SOURCE_FILE} libahp-xc DIR10_FOUND)
-            STRING(FIND ${SOURCE_FILE} libahp-gt DIR11_FOUND)
             IF (NOT ${DIR1_FOUND} EQUAL -1 OR NOT ${DIR2_FOUND} EQUAL -1 OR NOT ${DIR3_FOUND} EQUAL -1 OR NOT ${DIR4_FOUND} EQUAL -1 OR
                 NOT ${DIR5_FOUND} EQUAL -1 OR NOT ${DIR6_FOUND} EQUAL -1 OR NOT ${DIR7_FOUND} EQUAL -1 OR NOT ${DIR8_FOUND} EQUAL -1 OR
-                NOT ${DIR9_FOUND} EQUAL -1 OR NOT ${DIR10_FOUND} EQUAL -1 OR NOT ${DIR11_FOUND} EQUAL -1)
+                NOT ${DIR9_FOUND} EQUAL -1)
                 LIST(REMOVE_ITEM ALL_SOURCE_FILES ${SOURCE_FILE})
             ENDIF ()
         ENDFOREACH ()
@@ -205,6 +203,7 @@ option(WITH_ROLLOFFINO "Install RollOff ino Dome Driver" On)
 option(WITH_ASTROASIS "Install Astroasis Driver" On)
 option(WITH_OCS "Install OCS Driver" On)
 option(WITH_GPIO "Install GPIO Driver" On)
+option(WITH_MOONDUINO "Install Moonduino Focuser Driver" On)
 
 # FFMPEG required for INDI Webcam driver
 find_package(FFmpeg)
@@ -339,16 +338,6 @@ add_subdirectory(libricohcamerasdk)
 endif()
 add_subdirectory(libpktriggercord)
 endif (WITH_PENTAX)
-
-# libahp-xc
-if (WITH_AHP_XC)
-add_subdirectory(libahp-xc)
-endif(WITH_AHP_XC)
-
-# libahp-gt
-if (WITH_AHP_GT)
-add_subdirectory(libahp-gt)
-endif(WITH_AHP_GT)
 
 #toupbase dependencies
 if (WITH_TOUPBASE)
@@ -539,6 +528,11 @@ if (WITH_BEEFOCUS)
 add_subdirectory(indi-beefocus)
 endif(WITH_BEEFOCUS)
 
+## Moonduino Focuser
+if (WITH_MOONDUINO)
+add_subdirectory(indi-moonduino)
+endif(WITH_MOONDUINO)
+
 
 ## INOVA
 if (WITH_INOVAPLX)
@@ -712,8 +706,6 @@ if (WITH_AHP_XC)
 find_package(AHPXC)
 if(AHP_XC_FOUND)
 add_subdirectory(indi-ahp-xc)
-else(AHP_XC_FOUND)
-add_subdirectory(libahp-xc)
 endif(AHP_XC_FOUND)
 endif(WITH_AHP_XC)
 
@@ -878,14 +870,6 @@ endif (WITH_SVBONY AND NOT SVBONY_FOUND)
 if (WITH_PLAYERONE AND NOT PLAYERONE_FOUND)
 message(STATUS "libplayerone was not found and will now be built. Please install this libplayerone first before running cmake again to install indi-playerone.")
 endif (WITH_PLAYERONE AND NOT PLAYERONE_FOUND)
-
-if (WITH_AHP_XC AND NOT AHP_XC_FOUND)
-message(STATUS "libahp-xc was not found and will now be built. Please install libahp-xc first before running cmake again to install indi-ahp-xc.")
-endif (WITH_AHP_XC AND NOT AHP_XC_FOUND)
-
-if (WITH_AHP_GT AND NOT AHP_GT_FOUND)
-message(STATUS "libahp-gt was not found and will now be built. Please install libahp-gt first before running cmake again to install indi-ahpgt.")
-endif (WITH_AHP_GT AND NOT AHP_GT_FOUND)
 
 if (WITH_ASTROASIS AND NOT ASTROASIS_FOUND)
 message(STATUS "libastroasis was not found and will now be built. Please install libastroasis first before running cmake again to install indi-astroasis.")

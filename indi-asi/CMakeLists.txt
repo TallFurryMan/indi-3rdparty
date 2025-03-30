@@ -26,14 +26,6 @@ include_directories( ${CFITSIO_INCLUDE_DIR})
 
 include(CMakeCommon)
 
-if (INDI_WEBSOCKET)
-    find_package(websocketpp REQUIRED)
-    find_package(Boost COMPONENTS system thread)
-    include_directories (${Boost_INCLUDE_DIRS})
-    add_definitions(-DHAVE_WEBSOCKET)
-    SET(HAVE_WEBSOCKET 1)
-endif()
-
 ########### indi_asi_ccd ###########
 set(indi_asi_SRCS
    ${CMAKE_CURRENT_SOURCE_DIR}/asi_base.cpp
@@ -43,9 +35,6 @@ set(indi_asi_SRCS
 
 add_executable(indi_asi_ccd ${indi_asi_SRCS})
 target_link_libraries(indi_asi_ccd ${INDI_LIBRARIES} ${CFITSIO_LIBRARIES} ${ASI_LIBRARIES} ${USB1_LIBRARIES} ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
-if (HAVE_WEBSOCKET)
-    target_link_libraries(indi_asi_ccd ${Boost_LIBRARIES})
-endif()
 
 ########### indi_asi_single_ccd ###########
 set(indi_asi_single_SRCS
@@ -56,9 +45,6 @@ set(indi_asi_single_SRCS
 
 add_executable(indi_asi_single_ccd ${indi_asi_single_SRCS})
 target_link_libraries(indi_asi_single_ccd ${INDI_LIBRARIES} ${CFITSIO_LIBRARIES} ${ASI_LIBRARIES} ${USB1_LIBRARIES} ${ZLIB_LIBRARY} ${CMAKE_THREAD_LIBS_INIT})
-if (HAVE_WEBSOCKET)
-    target_link_libraries(indi_asi_single_ccd ${Boost_LIBRARIES})
-endif()
 
 ########### indi_asi_wheel ###########
 add_executable(indi_asi_wheel ${CMAKE_CURRENT_SOURCE_DIR}/asi_wheel.cpp)
@@ -135,3 +121,14 @@ target_link_libraries(test-usb-utils ${INDI_LIBRARIES} ${USB1_LIBRARIES})
 if (CMAKE_SYSTEM_NAME MATCHES "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm*")
 target_link_libraries(test-usb-utils rt)
 endif()
+
+########### force_usb_reset ###########
+add_executable(force_usb_reset ${CMAKE_CURRENT_SOURCE_DIR}/force_usb_reset.cpp ${CMAKE_CURRENT_SOURCE_DIR}/usb_utils.cpp)
+IF (APPLE)
+set(CMAKE_EXE_LINKER_FLAGS "-framework IOKit -framework CoreFoundation")
+ENDIF()
+target_link_libraries(force_usb_reset ${INDI_LIBRARIES} ${USB1_LIBRARIES})
+if (CMAKE_SYSTEM_NAME MATCHES "Linux" AND CMAKE_SYSTEM_PROCESSOR MATCHES "arm*")
+target_link_libraries(force_usb_reset rt)
+endif()
+install(TARGETS force_usb_reset RUNTIME DESTINATION bin)
