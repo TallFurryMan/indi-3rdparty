@@ -1,0 +1,14 @@
+Source: indi-esphome-observatory
+Section: science
+Priority: optional
+Maintainer: Jasem Mutlaq <mutlaqja@ikarustech.com>
+Build-Depends: debhelper (>= 10), cdbs, cmake, libindi-dev
+Standards-Version: 3.9.2
+
+Package: indi-esphome-observatory
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: INDI ESPHome observatory driver
+ .
+ This driver controls ESPHome-based observatory devices through the INDI dome,
+ input, output, and weather interfaces.

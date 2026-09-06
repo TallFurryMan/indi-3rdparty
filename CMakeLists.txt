@@ -262,6 +262,7 @@ option(WITH_BRESSEREXOS2 "Install Bresser Exos 2 GoTo Mount Driver" On)
 option(WITH_PLAYERONE "Install Player One Astronomy's Camera Driver" On)
 option(WITH_WEEWX_JSON "Install Weewx JSON Driver" On)
 option(WITH_ROLLOFFINO "Install RollOff ino Dome Driver" On)
+option(WITH_ESPHOME_OBSERVATORY "Install ESPHome Observatory Driver" On)
 option(WITH_ASTROASIS "Install Astroasis Driver" On)
 option(WITH_SCOPELINK "Install ScopeLink Driver" On)
 option(WITH_OCS "Install OCS Driver" On)
@@ -529,6 +530,11 @@ else(BUILD_LIBS)
   if(WITH_SCOPELINK)
     add_subdirectory(indi-scopelink)
   endif(WITH_SCOPELINK)
+
+  ## ESPHome Observatory
+  if(WITH_ESPHOME_OBSERVATORY)
+    add_subdirectory(indi-esphome-observatory)
+  endif(WITH_ESPHOME_OBSERVATORY)
 
   ## Shelyak
   if(WITH_SHELYAK)
